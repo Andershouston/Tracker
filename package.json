@@ -1,0 +1,31 @@
+{
+  "name": "dm-initiative-tracker",
+  "version": "2.0.0",
+  "private": true,
+  "description": "A lightweight, local-first D&D encounter and initiative tracker.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 7823",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 7823",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@radix-ui/colors": "^3.0.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.10"
+  }
+}

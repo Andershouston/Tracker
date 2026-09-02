@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "pack": {
+    "id": "dnd-2014-srd-conditions",
+    "name": "D&D 2014 SRD Conditions",
+    "sourceVersion": "System Reference Document 5.1",
+    "rulesetCompatibility": ["dnd5e-2014-srd-5.1"],
+    "requiredAttribution": [
+      {
+        "text": "System Reference Document 5.1 by Wizards of the Coast LLC, licensed under CC BY 4.0.",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ]
+  },
+  "content": {
+    "conditions": [
+      { "id": "blinded", "name": "Blinded", "category": "debuff", "description": "Cannot see, automatically fails sight-dependent checks, attacks with disadvantage, and is attacked with advantage.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "charmed", "name": "Charmed", "category": "debuff", "description": "Cannot attack or harm the charmer, who gains advantage on social checks involving the creature.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "deafened", "name": "Deafened", "category": "debuff", "description": "Cannot hear and automatically fails checks that depend on hearing.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "exhausted", "name": "Exhaustion", "category": "detrimental", "description": "Suffers cumulative penalties according to its current level of exhaustion.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "frightened", "name": "Frightened", "category": "debuff", "description": "Has disadvantage on checks and attacks while the source is visible and cannot willingly move closer to it.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "grappled", "name": "Grappled", "category": "detrimental", "description": "Its speed becomes 0 until the grapple ends.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "incapacitated", "name": "Incapacitated", "category": "detrimental", "description": "Cannot take actions or reactions.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "invisible", "name": "Invisible", "category": "beneficial", "description": "Cannot be seen without special senses; its attacks have advantage and attacks against it have disadvantage.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "paralyzed", "name": "Paralyzed", "category": "detrimental", "description": "Is incapacitated, cannot move or speak, automatically fails certain saves, and is especially vulnerable to nearby attackers.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "petrified", "name": "Petrified", "category": "detrimental", "description": "Is transformed into an inanimate substance, incapacitated, resistant to damage, and largely insulated from outside effects.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "poisoned", "name": "Poisoned", "category": "debuff", "description": "Has disadvantage on attack rolls and ability checks.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "prone", "name": "Prone", "category": "detrimental", "description": "Can only crawl until it stands and has altered attack advantages based on an attacker's distance.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "restrained", "name": "Restrained", "category": "detrimental", "description": "Its speed becomes 0; its attacks and Dexterity saves are impaired, while attacks against it have advantage.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "stunned", "name": "Stunned", "category": "detrimental", "description": "Is incapacitated, cannot move, speaks only falteringly, automatically fails certain saves, and is attacked with advantage.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } },
+      { "id": "unconscious", "name": "Unconscious", "category": "detrimental", "description": "Is incapacitated and unaware, drops held items, falls prone, automatically fails certain saves, and is vulnerable to nearby attacks.", "rulesetCompatibility": ["dnd5e-2014-srd-5.1"], "duration": { "default": null, "tickAt": "manual" } }
+    ],
+    "creatures": [],
+    "spells": []
+  }
+}

@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+*.log
+.DS_Store
+
+# Local design/agent working files are not required to run the app.
+.agents/
+.codex/
+.claude/
+.impeccable/
+.impeccable.md
+skills-lock.json
+/Icons/
+
+# Locally generated release archives.
+release/

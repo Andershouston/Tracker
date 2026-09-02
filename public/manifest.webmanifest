@@ -1,0 +1,13 @@
+{
+  "name": "DM Initiative Tracker",
+  "short_name": "Initiative",
+  "description": "A local-first D&D initiative and encounter tracker.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111113",
+  "theme_color": "#111113",
+  "icons": [
+    { "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

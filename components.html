@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Component Library — DM Tools</title>
+<script>
+// Pull the SVG symbol defs directly from the app so icons always stay in sync
+(async () => {
+  try {
+    const html = await (await fetch('legacy.html?' + Date.now())).text();
+    const m = html.match(/<svg[^>]*display:none[^>]*>[\s\S]*?<\/svg>/);
+    if (m) document.body.insertAdjacentHTML('afterbegin', m[0]);
+  } catch(e) { console.warn('Could not load SVG defs from index.html', e); }
+})();
+</script>
+<style>
+/* ── DESIGN TOKENS (exact copy from index.html) ──────────── */
+:root {
+  --blue-1: #0c111c; --blue-2: #111725; --blue-3: #172448; --blue-4: #1d2e61;
+  --blue-5: #243974; --blue-6: #2d4484; --blue-7: #375098; --blue-8: #405eb2;
+  --blue-9: #3d63dd; --blue-10: #3f5cb0; --blue-11: #93b4ff; --blue-12: #d5e2ff;
+  --gray-1: #111113; --gray-2: #19191b; --gray-3: #222325; --gray-4: #292a2e;
+  --gray-5: #303136; --gray-6: #393a40; --gray-7: #46484f; --gray-8: #5f606a;
+  --gray-9: #6c6e79; --gray-10: #797b86; --gray-11: #b2b3bd; --gray-12: #eeeef0;
+  --color-background: #111113;
+  --bg: var(--color-background); --surface: var(--gray-2); --card: var(--gray-3);
+  --border: var(--gray-6); --text: var(--gray-12); --text-dim: var(--gray-10); --text-muted: var(--gray-8);
+  --accent: var(--blue-9); --accent-text: var(--blue-11); --accent-hover: var(--blue-10);
+  --color-pc: var(--blue-11); --color-ally: #70c196; --color-enemy: #f16a7d; --color-neutral: #ae8c7e;
+  --bronze-3: #262220; --bronze-5: #3d3429; --bronze-6: #493e3a;
+  --bronze-7: #5c4e47; --bronze-8: #714f47; --bronze-9: #a18072; --bronze-10: #ae8c7e; --bronze-11: #d4a58a;
+  --color-hp-high: #70c196; --color-hp-mid: #f0a952; --color-hp-low: #f16a7d;
+  --header-h: 56px; --toolbar-h: 52px;
+}
+@supports (color: color(display-p3 1 1 1)) {
+  @media (color-gamut: p3) {
+    :root {
+      --blue-2: oklch(20.7% 0.0302 266.8); --blue-3: oklch(27.1% 0.0694 266.8);
+      --blue-5: oklch(36.1% 0.1046 266.8); --blue-6: oklch(40.4% 0.1106 266.8);
+      --blue-7: oklch(45% 0.1203 266.8); --blue-8: oklch(50.3% 0.1373 266.8);
+      --blue-9: oklch(54.3% 0.1913 266.8); --blue-10: oklch(49.7% 0.1373 266.8);
+      --blue-11: oklch(77.7% 0.1234 266.8);
+      --gray-1: oklch(17.8% 0.0042 277.7); --gray-2: oklch(21.5% 0.004 277.7);
+      --gray-3: oklch(25.5% 0.0055 277.7); --gray-4: oklch(28.4% 0.0075 277.7);
+      --gray-5: oklch(31.4% 0.0089 277.7); --gray-6: oklch(35% 0.01 277.7);
+      --gray-8: oklch(49.2% 0.0157 277.7); --gray-10: oklch(58.6% 0.0165 277.7);
+      --gray-11: oklch(77% 0.0138 277.7); --gray-12: oklch(94.9% 0.0026 277.7);
+    }
+  }
+}
+
+/* ── RESET / BASE ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif; font-size: 14px; min-height: 100vh;
+}
+
+/* ── PAGE CHROME ─────────────────────────────────────────── */
+.page-header {
+  height: var(--header-h); background: var(--surface); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px; position: sticky; top: 0; z-index: 100;
+}
+.page-header h1 { font-size: 16px; font-weight: 700; flex: 1; }
+.page-body { max-width: 840px; margin: 0 auto; padding: 28px 16px; }
+.section { margin-bottom: 48px; }
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-dim);
+  margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.col { display: flex; flex-direction: column; gap: 5px; }
+.label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.7px; }
+
+/* ── ENTITY ROW — copied verbatim from index.html ─────── */
+.entity-row {
+  background: var(--surface); border: none; border-left: 3px solid var(--gray-5);
+  border-radius: 8px; margin-bottom: 4px; user-select: none; transition: border-color 0.12s;
+}
+.entity-row.active-turn { background: var(--gray-3); border-left-color: var(--gray-8); }
+.entity-row.active-turn.type-PC      { background: var(--blue-2);  border-left-color: var(--blue-11); }
+.entity-row.active-turn.type-Enemy   { background: #2a0d11;         border-left-color: #ff9592; }
+.entity-row.active-turn.type-Ally    { background: #091e12;         border-left-color: #70c196; }
+.entity-row.type-Neutral              { border-left-color: var(--bronze-6); }
+.entity-row.active-turn.type-Neutral  { background: var(--bronze-3); border-left-color: var(--bronze-8); }
+.entity-row.is-dead { background: #1e0a0d !important; border-left-color: #7a2530; }
+.entity-row.is-dead .entity-fields { opacity: 0.4; }
+.entity-row.is-unconscious .ent-name { font-style: italic; }
+.entity-row.is-dying { background: #1e160f !important; border-left-color: #7a4318; }
+.entity-row.is-dying .ent-name { color: #f16a7d !important; }
+
+.ds-counter { display: flex; align-items: center; gap: 4px; padding: 0 4px; }
+.ds-group { display: flex; align-items: center; gap: 2px; }
+.ds-pip {
+  display: flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; padding: 2px;
+  background: none; border: none; cursor: pointer;
+  border-radius: 9999px; color: inherit; flex-shrink: 0;
+}
+.ds-pip:hover { background: rgba(255,255,255,0.08); }
+.ds-suc { color: #70c196; }
+.ds-fail { color: #f16a7d; }
+.ds-icon { display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; flex-shrink: 0; }
+.dying-badge-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #3a141e; border: 1px solid #5e1a2e; color: #ff949d;
+  border-radius: 4px; padding: 2px 4px 2px 6px;
+  font-size: 11px; font-weight: 500; white-space: nowrap;
+}
+.dying-badge-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 9999px;
+  background: none; border: none; cursor: pointer; color: #ff949d; padding: 0; flex-shrink: 0;
+}
+.dying-badge-close:hover { background: rgba(255,255,255,0.12); }
+
+.compact-row { display: flex; align-items: center; padding: 6px 9px; gap: 6px; cursor: pointer; }
+.entity-card-contents { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+.entity-fields { display: flex; align-items: center; gap: 2px; min-height: 26px; }
+.drag-handle { color: var(--text-muted); cursor: grab; padding: 0 2px; flex-shrink: 0; display: flex; align-items: center; }
+
+.ent-type-badge {
+  width: 24px; height: 24px; border-radius: 4px; border: 1px solid;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 2px;
+}
+.ent-type-badge.type-PC      { background: var(--blue-3);   border-color: var(--blue-6);   color: var(--blue-11); }
+.ent-type-badge.type-Enemy   { background: #3b1219;          border-color: #6b2b33;         color: #ff9592; }
+.ent-type-badge.type-Ally    { background: #0d2b1d;          border-color: #1a4a30;         color: #70c196; }
+.ent-type-badge.type-Neutral { background: var(--bronze-3);  border-color: var(--bronze-6); color: var(--bronze-10); }
+
+.init-pill {
+  width: 64px; height: 26px; display: flex; align-items: center;
+  padding: 4px; gap: 6px; border-radius: 4px; flex-shrink: 0;
+}
+.init-pill .init-icon { color: var(--gray-8); flex-shrink: 0; }
+.init-pill.rolled .init-icon { color: var(--blue-11); }
+.init-pill .init-num { font-size: 13px; font-weight: 500; color: var(--text); text-align: center; min-width: 0; }
+.init-pill.unrolled .init-num { color: var(--gray-8); }
+.init-pill.unrolled { cursor: pointer; }
+
+.ent-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ef-name-display { flex: 1; min-width: 0; }
+.ef-name-display .ef-content { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+.ef-num-display { display: flex; align-items: center; gap: 4px; min-width: 44px; flex-shrink: 0; font-size: 13px; color: var(--text); }
+.ef-num-display .ef-icon { flex-shrink: 0; color: var(--gray-9); }
+
+.ef-hp-display { display: flex; align-items: center; gap: 2px; font-size: 13px; padding: 2px 4px; }
+.ef-hp-display .ef-icon { flex-shrink: 0; color: var(--gray-9); margin-right: 2px; }
+.ef-hp-display .hp-current { color: var(--text); }
+.ef-hp-display .hp-current.hp-has-temp { color: var(--blue-11); }
+.ef-hp-display .hp-divider { width: 1px; background: var(--border); align-self: stretch; margin: 3px 4px; flex-shrink: 0; }
+.ef-hp-display .hp-max { color: var(--gray-9); }
+
+.hp-bar-full { height: 2px; width: 100%; background: #1e1e21; position: relative; overflow: hidden; flex-shrink: 0; }
+.hp-bar-fill { position: absolute; height: 100%; left: 0; transition: width 0.2s, background-color 0.3s; }
+.hp-bar-temp-fill { position: absolute; height: 100%; background: #4e9de0; transition: left 0.2s, width 0.2s; }
+
+.entity-health { display: flex; align-items: center; cursor: pointer; min-width: 100px; flex-shrink: 0; border-radius: 4px; padding: 2px; }
+.entity-health:hover { background: rgba(255,255,255,0.04); }
+
+.effect-bar { display: flex; align-items: center; gap: 4px; padding: 4px 0 2px; min-height: 28px; }
+.effect-bar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.effect-bar-sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; margin: 0 2px; }
+.effect-badges { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+
+.effect-badge {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px 5px 3px 4px; border-radius: 9999px;
+  border: 1px solid #393a40; background: #222325;
+  font-size: 12px; letter-spacing: 0.5px; color: #c9c9c9;
+  white-space: nowrap; position: relative; cursor: default; flex-shrink: 0;
+}
+.effect-badge svg { flex-shrink: 0; }
+.effect-badge-close {
+  display: none; align-items: center; justify-content: center;
+  width: 10px; height: 10px; padding: 0; background: none; border: none;
+  cursor: pointer; color: inherit; opacity: 0.6; flex-shrink: 0; border-radius: 9999px;
+}
+.effect-badge:hover .effect-badge-close { display: flex; }
+.effect-badge.cat-detrimental { background: #3a141e; border-color: #5e1a2e; color: #ff949d; }
+.effect-badge.cat-beneficial  { background: #0d2d2a; border-color: #084843; color: #0bd8b6; }
+.effect-badge.cat-buff        { background: #302008; border-color: #5c3d05; color: #ffca16; }
+.effect-badge.cat-debuff      { background: #301c3b; border-color: #54346b; color: #d19dff; }
+
+.eab-add-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px;
+  background: none; border: none; cursor: pointer; color: var(--gray-8); padding: 0; flex-shrink: 0;
+}
+.eab-add-btn:hover { color: var(--gray-11); background: var(--gray-3); }
+
+.entity-action-bar { display: flex; align-items: center; gap: 2px; flex-shrink: 0; position: relative; margin-left: 4px; }
+.eab-btn {
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; border-radius: 6px; cursor: pointer; color: var(--gray-8);
+  padding: 4px; width: 24px; height: 24px;
+}
+.eab-btn:hover { background: var(--gray-4); color: var(--gray-11); }
+.eab-btn.has-notes { color: var(--gray-12); }
+
+.staging-kebab-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--gray-8);
+  padding: 6px 12px 2px;
+}
+.staging-kebab-label.danger { color: #ff4d4f; }
+.staging-kebab-item {
+  display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 12px;
+  border-radius: 6px; font-size: 14px; color: #e1e1e1; cursor: pointer; white-space: nowrap;
+  margin: 0 4px;
+}
+.staging-kebab-item:hover { background: var(--gray-4); }
+.staging-kebab-item.danger { color: #ff9592; }
+.staging-kebab-item.danger:hover { background: #3b1219; }
+
+.app-btn {
+  height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
+  white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+  text-decoration: none; line-height: 1; user-select: none;
+}
+.app-btn:hover { background: rgba(255,255,255,0.07); border-color: var(--gray-6); }
+.app-btn.dm { background: var(--gray-3); border-color: var(--gray-6); }
+.app-btn.dm:hover { background: var(--blue-5); border-color: var(--blue-7); }
+
+.tb-btn {
+  height: 30px; padding: 0 9px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600;
+  white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px;
+}
+.tb-btn:hover { background: rgba(255,255,255,0.07); border-color: var(--gray-6); }
+.tb-btn.primary { background: var(--accent); border-color: var(--blue-8); color: #fff; }
+.tb-btn.primary:hover { background: var(--accent-hover); }
+.tb-btn.success { background: #0d2b1d; border-color: #1a4a30; color: #70c196; }
+.tb-btn.bronze { background: #262220; border-color: #493e3a; color: #ae8c7e; }
+.tb-btn.neutral-blue { background: #172448; border-color: #2d4484; color: #93b4ff; }
+.tb-btn.disabled { opacity: 0.4; pointer-events: none; }
+.tb-btn.dropdown { padding: 0 7px 0 9px; }
+.tb-sep { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; margin: 0 1px; }
+.tb-spacer { flex: 1; }
+
+/* HP popover */
+.hp-popover-demo {
+  display: flex; align-items: center; gap: 6px;
+  background: #19191b; border: 1px solid var(--gray-5);
+  border-radius: 8px; padding: 8px; width: fit-content;
+}
+.hp-popover-input {
+  height: 30px; width: 120px; background: #1c1c1c; border: 1px solid #4d4d4d;
+  color: var(--text); border-radius: 6px; padding: 0 8px; font-size: 13px;
+}
+.hp-popover-set {
+  height: 30px; padding: 0 10px; background: #222325; border: 1px solid #393a40;
+  border-radius: 6px; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.hp-icon-btn {
+  width: 30px; height: 30px; border-radius: 6px; border: 1px solid;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.hp-icon-btn.damage { background: #3b1219; border-color: #6b2b33; color: #ff9592; }
+.hp-icon-btn.heal   { background: #0d2b1d; border-color: #1a4a30; color: #70c196; }
+.hp-icon-btn.temp   { background: var(--blue-3); border-color: var(--blue-6); color: var(--blue-11); }
+
+/* Toolbar & header mockups */
+.toolbar-demo {
+  background: var(--surface); border-top: 1px solid var(--border);
+  height: var(--toolbar-h); display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 10px; gap: 6px;
+}
+.tb-left, .tb-right { display: flex; align-items: center; gap: 6px; }
+.header-demo {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  height: var(--header-h); display: flex; align-items: center; padding: 8px 12px 9px; gap: 10px;
+}
+.header-sep { width: 1px; height: 28px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+
+/* DM menu */
+.dm-dropdown-demo { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 220px; overflow: hidden; }
+.dm-section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); padding: 8px 14px 4px; }
+.dm-item { padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dm-item:hover { background: var(--gray-4); }
+.dm-item.danger { color: #ff9592; }
+.dm-sep { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Duration step modal */
+.modal-demo { background: #19191b; border: 1px solid #2e2f33; border-radius: 16px; width: 380px; }
+.dur-step { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.dur-back { display: inline-flex; align-items: center; gap: 3px; background: none; border: none; color: var(--gray-8); cursor: pointer; font-size: 12px; padding: 0; font-family: inherit; }
+.dur-title { font-size: 15px; font-weight: 590; color: var(--gray-12); }
+.dur-conc-note { font-size: 11px; color: #0bd8b6; padding: 6px 10px; background: rgba(11,216,182,0.07); border-radius: 6px; border: 1px solid rgba(11,216,182,0.15); }
+.dur-fields { display: flex; gap: 8px; align-items: center; }
+.dur-label { font-size: 12px; color: var(--gray-10); width: 64px; flex-shrink: 0; }
+.dur-input { width: 64px; background: var(--gray-1); border: 1px solid var(--gray-5); border-radius: 6px; color: var(--gray-12); font-size: 13px; padding: 6px 10px; font-family: inherit; text-align: center; }
+.dur-select {
+  background: var(--gray-1); border: 1px solid var(--gray-5); border-radius: 6px;
+  color: var(--gray-12); font-size: 13px; padding: 6px 28px 6px 10px;
+  font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235f606a' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
+.dur-confirm { align-self: flex-end; height: 32px; padding: 0 16px; background: var(--blue-5); border: 1px solid var(--blue-7); border-radius: 6px; color: var(--gray-12); font-size: 13px; font-weight: 590; cursor: pointer; }
+
+/* Effect tooltip */
+.tooltip-demo {
+  background: #19191b; border: 1px solid #393a40; border-radius: 8px;
+  padding: 18px 12px; width: 280px; display: flex; flex-direction: row; gap: 8px; align-items: flex-start;
+}
+.effect-tooltip-icon { flex-shrink: 0; width: 24px; height: 24px; border-radius: 4px; border: 1px solid; display: flex; align-items: center; justify-content: center; }
+.effect-tooltip-icon.cat-detrimental { background: #3a141e; border-color: #5e1a2e; color: #ff949d; }
+.effect-tooltip-icon.cat-beneficial  { background: #0d2d2a; border-color: #084843; color: #0bd8b6; }
+.effect-tooltip-name { font-size: 13px; font-weight: 590; color: #e1e1e1; }
+.effect-tooltip-dur  { font-size: 11px; color: #c9c9c9; flex-shrink: 0; margin-left: 8px; }
+.effect-tooltip-divider { height: 1px; background: #393a40; margin: 2px 0 5px; }
+.effect-tooltip-desc { font-size: 11px; color: #c9c9c9; line-height: 14px; }
+
+/* Combat log */
+.log-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 11px; line-height: 1.6; }
+.log-round-header { text-align: center; color: var(--blue-11); font-size: 11px; font-weight: 700; padding: 4px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin: 4px 0; }
+.log-round-header:first-child { border-top: none; margin-top: 0; }
+.log-r { color: var(--gray-9); margin-right: 4px; }
+.log-system     { color: var(--gray-9); }
+.log-damage     { color: #ff9592; }
+.log-healing    { color: #70c196; }
+.log-death      { color: var(--gray-9); }
+.log-manual     { color: var(--blue-11); }
+
+/* Add entity row */
+#add-entity-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  color: var(--gray-8); border: 1px dashed var(--gray-6); border-radius: 8px;
+  cursor: pointer; font-size: 13px; margin-top: 4px; user-select: none;
+}
+#add-entity-row:hover { color: var(--gray-11); border-color: var(--gray-8); background: var(--gray-3); }
+
+/* Color swatches */
+.swatch-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.swatch { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.swatch-box { width: 44px; height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); }
+.swatch-label { font-size: 9px; color: var(--text-muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Component Library — DM Tools</h1>
+  <a href="index.html" style="color:var(--accent-text);text-decoration:none;font-size:13px;padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card)">← Back to App</a>
+</div>
+
+<div class="page-body">
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 1. TOKENS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Design Tokens — Color Scales</div>
+
+  <div class="label" style="margin-bottom:6px">Blue Scale</div>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-1)"></div><div class="swatch-label">1</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-2)"></div><div class="swatch-label">2 active-bg</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-3)"></div><div class="swatch-label">3 badge</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-5)"></div><div class="swatch-label">5</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-6)"></div><div class="swatch-label">6 badge-bd</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-8)"></div><div class="swatch-label">8</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-9)"></div><div class="swatch-label">9 accent</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--blue-11)"></div><div class="swatch-label">11 PC/text</div></div>
+  </div>
+  <div class="label" style="margin-bottom:6px">Gray Scale</div>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-1)"></div><div class="swatch-label">1 bg</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-2)"></div><div class="swatch-label">2 surface</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-3)"></div><div class="swatch-label">3 card</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-5)"></div><div class="swatch-label">5</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-6)"></div><div class="swatch-label">6 border</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-8)"></div><div class="swatch-label">8 muted</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-11)"></div><div class="swatch-label">11 dim</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--gray-12)"></div><div class="swatch-label">12 text</div></div>
+  </div>
+  <div class="label" style="margin-bottom:6px">Bronze Scale (Neutral / NPC)</div>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-3)"></div><div class="swatch-label">3 badge</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-5)"></div><div class="swatch-label">5</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-6)"></div><div class="swatch-label">6 border</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-8)"></div><div class="swatch-label">8 active</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-10)"></div><div class="swatch-label">10 text</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--bronze-11)"></div><div class="swatch-label">11</div></div>
+  </div>
+  <div class="label" style="margin-bottom:6px">Semantic</div>
+  <div class="swatch-row">
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-pc)"></div><div class="swatch-label">PC</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-ally)"></div><div class="swatch-label">Ally</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-enemy)"></div><div class="swatch-label">Enemy</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-neutral)"></div><div class="swatch-label">Neutral</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-hp-high)"></div><div class="swatch-label">HP hi</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-hp-mid)"></div><div class="swatch-label">HP mid</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:var(--color-hp-low)"></div><div class="swatch-label">HP lo</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#1e160f"></div><div class="swatch-label">dying-bg</div></div>
+    <div class="swatch"><div class="swatch-box" style="background:#611623"></div><div class="swatch-label">dying-bar</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 2. HEADER BAR -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Header Bar</div>
+  <div class="header-demo" style="border-radius:8px">
+    <span style="font-size:16px;font-weight:600;flex:1">Example Encounter</span>
+    <div class="header-sep"></div>
+    <button class="app-btn"><svg width="12" height="12"><use href="#icon-plus"/></svg> New</button>
+    <button class="app-btn"><svg width="13" height="13"><use href="#icon-load"/></svg> Load</button>
+    <button class="app-btn"><svg width="13" height="13"><use href="#icon-save"/></svg> Save</button>
+    <div class="header-sep"></div>
+    <button class="app-btn"><svg width="13" height="13"><use href="#icon-log"/></svg> Log</button>
+    <button class="app-btn"><svg width="13" height="13"><use href="#icon-notes-btn"/></svg> Notes</button>
+    <button class="app-btn"><svg width="13" height="13"><use href="#icon-library"/></svg> Library</button>
+    <div class="header-sep"></div>
+    <button class="app-btn dm">DM <svg width="9" height="9"><use href="#icon-chevron"/></svg></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 3. TOOLBAR -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Toolbar — Staging vs Combat</div>
+
+  <div class="label" style="margin-bottom:6px">Staging mode</div>
+  <div class="toolbar-demo" style="border-radius:8px;margin-bottom:12px">
+    <div class="tb-left">
+      <span style="font-size:13px;font-weight:600;color:var(--blue-11)">Staging</span>
+    </div>
+    <div class="tb-right">
+      <button class="tb-btn"><svg width="13" height="13"><use href="#icon-sort"/></svg> Sort</button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn primary"><svg width="12" height="12"><use href="#icon-play"/></svg> Begin Combat</button>
+    </div>
+  </div>
+
+  <div class="label" style="margin-bottom:6px">Combat mode</div>
+  <div class="toolbar-demo" style="border-radius:8px">
+    <div class="tb-left">
+      <button class="tb-btn" style="opacity:0.4;pointer-events:none"><svg width="11" height="11"><use href="#icon-arrow-left"/></svg> Prev</button>
+      <button class="tb-btn">Next <svg width="11" height="11"><use href="#icon-arrow-right"/></svg></button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:13px;font-weight:600;color:var(--gray-11)">Round</span>
+      <span style="font-size:13px;font-weight:600;color:#f16a7d">2</span>
+    </div>
+    <div class="tb-right">
+      <button class="tb-btn"><svg width="13" height="13"><use href="#icon-sort"/></svg> Sort</button>
+      <button class="tb-btn dropdown"><svg width="14" height="14"><use href="#icon-dice"/></svg> Roll <svg width="9" height="9"><use href="#icon-chevron"/></svg></button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn success">End Combat</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 4. TYPE BADGES -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Entity Type Badges</div>
+  <div class="row">
+    <div class="col"><div class="label">PC</div>
+      <div class="ent-type-badge type-PC"><svg width="14" height="14"><use href="#icon-type-pc"/></svg></div></div>
+    <div class="col"><div class="label">Enemy</div>
+      <div class="ent-type-badge type-Enemy"><svg width="14" height="14"><use href="#icon-type-enemy"/></svg></div></div>
+    <div class="col"><div class="label">Ally</div>
+      <div class="ent-type-badge type-Ally"><svg width="14" height="14"><use href="#icon-type-ally"/></svg></div></div>
+    <div class="col"><div class="label">Neutral / NPC (bronze)</div>
+      <div class="ent-type-badge type-Neutral"><svg width="14" height="14"><use href="#icon-type-neutral"/></svg></div></div>
+    <div class="col"><div class="label">Dead (skull icon)</div>
+      <div class="ent-type-badge type-Enemy"><svg width="14" height="14"><use href="#icon-status-dead"/></svg></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 5. INITIATIVE PILL -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Initiative Pill</div>
+  <div class="row">
+    <div class="col"><div class="label">Rolled</div>
+      <div class="init-pill rolled">
+        <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+        <span class="init-num">18</span>
+      </div>
+    </div>
+    <div class="col"><div class="label">Unrolled</div>
+      <div class="init-pill unrolled">
+        <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+        <span class="init-num">—</span>
+      </div>
+    </div>
+    <div class="col"><div class="label">Staging / modifier</div>
+      <div style="display:flex;align-items:center;gap:4px;background:var(--gray-3);border-radius:4px;padding:4px 6px">
+        <svg width="14" height="14" style="color:var(--gray-8)"><use href="#icon-init-mod"/></svg>
+        <span style="font-size:13px;font-weight:500;color:var(--gray-11)">+3</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 6. ENTITY ROWS — ALL STATES -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Entity Rows — All States</div>
+
+  <!-- PC — active turn -->
+  <div class="label" style="margin-bottom:4px">PC — active turn, Dodge + Concentration</div>
+  <div class="entity-row type-PC active-turn" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-PC"><svg width="14" height="14"><use href="#icon-type-pc"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">20</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Lyra Moonwhisper</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>13</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">40</span><span class="hp-divider"></span><span class="hp-max">40</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:100%;background:#70c196"></div></div>
+        <div class="effect-bar">
+          <div class="effect-bar-actions">
+            <button class="eab-add-btn" title="Dodge"><svg width="12" height="12"><use href="#icon-action-dodge"/></svg></button>
+            <button class="eab-add-btn" title="Hold"><svg width="12" height="12"><use href="#icon-action-hold"/></svg></button>
+          </div>
+          <div class="effect-bar-sep"></div>
+          <button class="eab-add-btn"><svg width="12" height="12"><use href="#icon-effect-add"/></svg></button>
+          <div class="effect-badges">
+            <div class="effect-badge cat-beneficial">
+              <svg width="12" height="12"><use href="#icon-effect-concentration"/></svg>
+              <span>Concentration</span>
+              <span style="font-size:10px;opacity:0.7;margin-left:1px">Conc.</span>
+              <button class="effect-badge-close"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M7 1L1 7M1 1l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Enemy — normal, poisoned -->
+  <div class="label" style="margin-bottom:4px">Enemy — normal, mid HP, Poisoned</div>
+  <div class="entity-row type-Enemy" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-Enemy"><svg width="14" height="14"><use href="#icon-type-enemy"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">13</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Goblin Chief</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>15</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">21</span><span class="hp-divider"></span><span class="hp-max">36</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:58%;background:#f0a952"></div></div>
+        <div class="effect-bar">
+          <button class="eab-add-btn"><svg width="12" height="12"><use href="#icon-effect-add"/></svg></button>
+          <div class="effect-badges">
+            <div class="effect-badge cat-detrimental">
+              <svg width="12" height="12"><use href="#icon-effect-poisoned"/></svg>
+              <span>Poisoned</span>
+              <span style="font-size:10px;opacity:0.7;margin-left:1px">4 rd</span>
+              <button class="effect-badge-close"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M7 1L1 7M1 1l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ally — Blessed -->
+  <div class="label" style="margin-bottom:4px">Ally — full HP, Blessed, has notes</div>
+  <div class="entity-row type-Ally" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-Ally"><svg width="14" height="14"><use href="#icon-type-ally"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">12</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Town Guard</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>14</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">30</span><span class="hp-divider"></span><span class="hp-max">30</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:100%;background:#70c196"></div></div>
+        <div class="effect-bar">
+          <button class="eab-add-btn"><svg width="12" height="12"><use href="#icon-effect-add"/></svg></button>
+          <div class="effect-badges">
+            <div class="effect-badge cat-buff">
+              <svg width="12" height="12"><use href="#icon-effect-blessed"/></svg>
+              <span>Blessed</span>
+              <span style="font-size:10px;opacity:0.7;margin-left:1px">9 rd</span>
+              <button class="effect-badge-close"><svg width="8" height="8" viewBox="0 0 8 8"><path d="M7 1L1 7M1 1l6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn has-notes"><svg width="14" height="14"><use href="#icon-notes-has"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Neutral / NPC unrolled -->
+  <div class="label" style="margin-bottom:4px">Neutral / NPC — unrolled (bronze left border)</div>
+  <div class="entity-row type-Neutral" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-Neutral"><svg width="14" height="14"><use href="#icon-type-neutral"/></svg></div>
+          <div class="init-pill unrolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">—</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Villager</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>8</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">8</span><span class="hp-divider"></span><span class="hp-max">8</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:100%;background:#70c196"></div></div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PC — low HP + temp HP -->
+  <div class="label" style="margin-bottom:4px">PC — low HP + temp HP (current shows blue)</div>
+  <div class="entity-row type-PC" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-PC"><svg width="14" height="14"><use href="#icon-type-pc"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">7</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Mira Quickfingers</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>15</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current hp-has-temp">14</span><span class="hp-divider"></span><span class="hp-max">40</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full">
+          <div class="hp-bar-fill" style="width:15%;background:#f16a7d"></div>
+          <div class="hp-bar-temp-fill" style="left:15%;width:20%"></div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dying — death saves -->
+  <div class="label" style="margin-bottom:4px">Enemy — dying (2 success / 1 failure)</div>
+  <div class="entity-row type-Enemy is-dying" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-Enemy"><svg width="14" height="14"><use href="#icon-type-enemy"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">9</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Goblin Archer</span></div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">0</span><span class="hp-divider"></span><span class="hp-max">16</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:100%;background:#611623"></div></div>
+        <div class="effect-bar">
+          <button class="eab-add-btn"><svg width="12" height="12"><use href="#icon-effect-add"/></svg></button>
+          <div class="effect-badges">
+            <div class="dying-badge-pill">
+              <svg width="12" height="12" style="flex-shrink:0"><use href="#icon-status-dead"/></svg>
+              <span>Dying</span>
+              <button class="dying-badge-close"><svg width="8" height="8" viewBox="0 0 8 8"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" d="M7 1L1 7M1 1l6 6"/></svg></button>
+            </div>
+          </div>
+          <div class="effect-bar-sep"></div>
+          <div class="ds-counter">
+            <div class="ds-group ds-suc">
+              <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-cross"/></svg></span>
+              <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+              <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+              <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+            </div>
+            <div class="ds-group ds-fail">
+              <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+              <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+              <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+              <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-skull"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unconscious / stable -->
+  <div class="label" style="margin-bottom:4px">PC — unconscious / stable (Stabilized effect)</div>
+  <div class="entity-row type-PC is-unconscious" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-PC"><svg width="14" height="14"><use href="#icon-type-pc"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">7</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Thorin Ironforge</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>18</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">0</span><span class="hp-divider"></span><span class="hp-max">78</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:0%"></div></div>
+        <div class="effect-bar">
+          <button class="eab-add-btn"><svg width="12" height="12"><use href="#icon-effect-add"/></svg></button>
+          <div class="effect-badges">
+            <div class="effect-badge cat-beneficial">
+              <svg width="12" height="12"><use href="#icon-effect-stabilized"/></svg>
+              <span>Stabilized</span>
+              <span style="font-size:10px;opacity:0.7;margin-left:1px">1 rd</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dead -->
+  <div class="label" style="margin-bottom:4px">Enemy — dead</div>
+  <div class="entity-row type-Enemy is-dead" style="margin-bottom:12px">
+    <div class="compact-row">
+      <span class="drag-handle"><svg width="10" height="16"><use href="#icon-grip"/></svg></span>
+      <div class="entity-card-contents">
+        <div class="entity-fields">
+          <div class="ent-type-badge type-Enemy"><svg width="14" height="14"><use href="#icon-status-dead"/></svg></div>
+          <div class="init-pill rolled">
+            <span class="init-icon"><svg width="14" height="14"><use href="#icon-init"/></svg></span>
+            <span class="init-num">4</span>
+          </div>
+          <div class="ef-name-display"><span class="ef-content ent-name">Goblin Scout</span></div>
+          <div class="ef-num-display">
+            <svg class="ef-icon" width="14" height="16"><use href="#icon-ac"/></svg><span>12</span>
+          </div>
+          <div class="entity-health">
+            <div class="ef-hp-display">
+              <svg class="ef-icon" width="16" height="14"><use href="#icon-hp-field"/></svg>
+              <span class="hp-current">0</span><span class="hp-divider"></span><span class="hp-max">14</span>
+            </div>
+          </div>
+        </div>
+        <div class="hp-bar-full"><div class="hp-bar-fill" style="width:0%;background:#7a2530"></div></div>
+      </div>
+      <div class="entity-action-bar">
+        <button class="eab-btn"><svg width="14" height="14"><use href="#icon-notes-btn"/></svg></button>
+        <button class="eab-btn"><svg width="3" height="12"><use href="#icon-options"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="add-entity-row"><svg width="14" height="14"><use href="#icon-plus"/></svg> Add Entity</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 7. EFFECT BADGES (pill) -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Effect Badges — Pill (border-radius: 9999px)</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+    <div class="effect-badge"><svg width="12" height="12"><use href="#icon-effect-dodge-action"/></svg><span>Dodge Action</span></div>
+    <div class="effect-badge cat-beneficial"><svg width="12" height="12"><use href="#icon-effect-concentration"/></svg><span>Concentration</span><span style="font-size:10px;opacity:0.7;margin-left:1px">Conc.</span></div>
+    <div class="effect-badge cat-beneficial"><svg width="12" height="12"><use href="#icon-effect-stabilized"/></svg><span>Stabilized</span><span style="font-size:10px;opacity:0.7;margin-left:1px">1 rd</span></div>
+    <div class="effect-badge cat-buff"><svg width="12" height="12"><use href="#icon-effect-blessed"/></svg><span>Blessed</span><span style="font-size:10px;opacity:0.7;margin-left:1px">9 rd</span></div>
+    <div class="effect-badge cat-detrimental"><svg width="12" height="12"><use href="#icon-effect-poisoned"/></svg><span>Poisoned</span><span style="font-size:10px;opacity:0.7;margin-left:1px">4 rd</span></div>
+    <div class="dying-badge-pill">
+      <svg width="12" height="12" style="flex-shrink:0"><use href="#icon-status-dead"/></svg>
+      <span>Dying</span>
+      <button class="dying-badge-close"><svg width="8" height="8" viewBox="0 0 8 8"><path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none" d="M7 1L1 7M1 1l6 6"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 8. DEATH SAVE PIPS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Death Save Counter</div>
+  <div class="col" style="gap:14px">
+    <div class="col">
+      <div class="label">0 / 0</div>
+      <div class="ds-counter">
+        <div class="ds-group ds-suc">
+          <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-cross"/></svg></span>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+        </div>
+        <div class="ds-group ds-fail">
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-skull"/></svg></span>
+        </div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="label">2 success / 1 failure</div>
+      <div class="ds-counter">
+        <div class="ds-group ds-suc">
+          <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-cross"/></svg></span>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+          <button class="ds-pip ds-suc"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+        </div>
+        <div class="ds-group ds-fail">
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-filled"/></svg></button>
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <button class="ds-pip ds-fail"><svg width="12" height="12"><use href="#icon-ds-pip-empty"/></svg></button>
+          <span class="ds-icon"><svg width="14" height="14"><use href="#icon-ds-skull"/></svg></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 9. HP POPOVER -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">HP Popover (Damage → Heal → Temp → Set)</div>
+  <div class="hp-popover-demo">
+    <input class="hp-popover-input" type="number" placeholder="Amount">
+    <button class="hp-icon-btn damage"><svg width="13" height="13"><use href="#icon-hp-damage"/></svg></button>
+    <button class="hp-icon-btn heal"><svg width="13" height="13"><use href="#icon-hp-heal"/></svg></button>
+    <button class="hp-icon-btn temp"><svg width="13" height="13"><use href="#icon-hp-temp"/></svg></button>
+    <button class="hp-popover-set">Set</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 10. DM DROPDOWN -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">DM Dropdown Menu</div>
+  <div class="dm-dropdown-demo" style="max-width:240px">
+    <div class="dm-section-label">Combat</div>
+    <div class="dm-item">End Round Early</div>
+    <div class="dm-item">Return to Staging</div>
+    <div class="dm-sep"></div>
+    <div class="dm-section-label">Entities</div>
+    <div class="dm-item">Sort by Initiative</div>
+    <div class="dm-item">Roll All Initiative</div>
+    <div class="dm-item">Remove All Dead</div>
+    <div class="dm-sep"></div>
+    <div class="dm-section-label">Encounter</div>
+    <div class="dm-item">New Encounter</div>
+    <div class="dm-item">Load Encounter</div>
+    <div class="dm-sep"></div>
+    <div class="dm-section-label">Danger Zone</div>
+    <div class="dm-item danger">Clear All Conditions</div>
+    <div class="dm-item danger">Reset All HP</div>
+    <div class="dm-item danger">Delete This Encounter</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 11. KEBAB MENU -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Entity Kebab Menu (Combat)</div>
+  <div class="row" style="gap:24px;align-items:flex-start">
+    <div>
+      <div class="label" style="margin-bottom:8px">Normal entity</div>
+      <div style="background:#19191b;border:1px solid #393a40;border-radius:8px;width:180px;overflow:hidden;padding:4px">
+        <div class="staging-kebab-label">Options</div>
+        <div class="staging-kebab-item">Edit entity</div>
+        <div class="staging-kebab-item"><svg width="14" height="14"><use href="#icon-dice"/></svg> Roll Initiative</div>
+        <div class="staging-kebab-item">Delay Turn</div>
+        <div class="staging-kebab-label danger">Danger Zone</div>
+        <div class="staging-kebab-item danger">Remove entity</div>
+      </div>
+    </div>
+    <div>
+      <div class="label" style="margin-bottom:8px">Dead entity</div>
+      <div style="background:#19191b;border:1px solid #393a40;border-radius:8px;width:180px;overflow:hidden;padding:4px">
+        <div class="staging-kebab-label">Options</div>
+        <div class="staging-kebab-item">Edit entity</div>
+        <div class="staging-kebab-item"><svg width="14" height="14"><use href="#icon-dice"/></svg> Roll Initiative</div>
+        <div class="staging-kebab-item">Revive</div>
+        <div class="staging-kebab-label danger">Danger Zone</div>
+        <div class="staging-kebab-item danger">Remove entity</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 12. ADD EFFECT — DURATION STEP -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Add Effect — Duration Step Modal</div>
+  <div class="modal-demo">
+    <div class="dur-step">
+      <button class="dur-back">← Back</button>
+      <div class="dur-title">Concentration</div>
+      <div class="dur-conc-note">Concentration — duration ends if broken</div>
+      <div class="dur-fields">
+        <span class="dur-label">Duration</span>
+        <input class="dur-input" type="number" placeholder="∞">
+        <select class="dur-select"><option>Rounds</option><option>Minutes</option><option>Hours</option></select>
+      </div>
+      <div class="dur-fields">
+        <span class="dur-label">Size</span>
+        <select class="dur-select"><option>Self</option><option>5 ft</option><option>10 ft</option><option>30 ft</option></select>
+      </div>
+      <button class="dur-confirm">Add Effect</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 13. EFFECT TOOLTIP -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Effect Tooltip (hover on badge in app)</div>
+  <div class="tooltip-demo">
+    <div class="effect-tooltip-icon cat-detrimental">
+      <svg width="14" height="14"><use href="#icon-effect-poisoned"/></svg>
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:24px">
+        <span class="effect-tooltip-name">Poisoned</span>
+        <span class="effect-tooltip-dur">4 rd</span>
+      </div>
+      <div class="effect-tooltip-divider"></div>
+      <div class="effect-tooltip-desc">Disadvantage on attack rolls and ability checks. Saving throws vs. poison are also made with disadvantage.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 14. COMBAT LOG -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Combat Log</div>
+  <div class="log-box" style="max-width:400px">
+    <div class="log-round-header">— Round 1 —</div>
+    <div class="log-system"><span class="log-r">R1</span>Combat started.</div>
+    <div class="log-damage"><span class="log-r">R1</span>Goblin Archer took 8 damage. HP: 8 → 0</div>
+    <div class="log-death"><span class="log-r">R1</span>Goblin Archer is dying — making death saves.</div>
+    <div class="log-round-header">— Round 2 —</div>
+    <div class="log-death"><span class="log-r">R2</span>Goblin Archer took damage while dying — automatic death save failure (1/3).</div>
+    <div class="log-healing"><span class="log-r">R2</span>Goblin Archer stabilized with 3 successes — unconscious but stable.</div>
+    <div class="log-healing"><span class="log-r">R2</span>Goblin Archer healed 5 HP. HP: 0 → 5</div>
+    <div class="log-healing"><span class="log-r">R2</span>Goblin Archer regained consciousness.</div>
+    <div class="log-death"><span class="log-r">R2</span>💀 Bandit Thug died — 3 death save failures.</div>
+    <div class="log-manual"><span class="log-r">R2</span>DM: Boss entering second phase</div>
+  </div>
+</div>
+
+</div><!-- /page-body -->
+</body>
+</html>

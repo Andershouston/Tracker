@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "pack": {
+    "id": "my-table-pack",
+    "name": "My Table Pack",
+    "sourceVersion": "1.0.0",
+    "rulesetCompatibility": [
+      "dnd5e-2014-srd-5.1",
+      "dnd5e-2024-srd-5.2.1"
+    ],
+    "requiredAttribution": [
+      {
+        "text": "Replace this with any attribution required by the material you included.",
+        "url": "https://example.com/source"
+      }
+    ]
+  },
+  "content": {
+    "conditions": [
+      {
+        "id": "mud-slowed",
+        "name": "Mud-Slowed",
+        "description": "Speed is reduced until the creature leaves the difficult terrain.",
+        "category": "detrimental",
+        "rulesetCompatibility": [
+          "dnd5e-2014-srd-5.1",
+          "dnd5e-2024-srd-5.2.1"
+        ],
+        "duration": {
+          "default": 1,
+          "tickAt": "turn-end"
+        }
+      }
+    ],
+    "creatures": [
+      {
+        "id": "clockwork-scout",
+        "name": "Clockwork Scout",
+        "armorClass": 15,
+        "hitPoints": {
+          "average": 22,
+          "formula": "4d8 + 4"
+        },
+        "initiativeModifier": 3,
+        "rulesetCompatibility": [
+          "dnd5e-2024-srd-5.2.1"
+        ]
+      }
+    ],
+    "spells": [
+      {
+        "id": "guiding-spark",
+        "name": "Guiding Spark",
+        "level": 1,
+        "description": "A sample spell entry for demonstrating the pack format.",
+        "duration": "1 round",
+        "concentration": false,
+        "rulesetCompatibility": [
+          "dnd5e-2024-srd-5.2.1"
+        ]
+      }
+    ]
+  }
+}
