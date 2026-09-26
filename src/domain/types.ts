@@ -147,6 +147,7 @@ export type AppPanel =
   | "roster"
   | "library"
   | "conditions"
+  | "reference"
   | "reference-movement"
   | "reference-actions"
   | "reference-bonus"

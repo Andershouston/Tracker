@@ -20,7 +20,7 @@ import { importLegacyState } from "../data/legacy-import";
 import { activateEffect } from "../domain/effects";
 import { createEncounter, createEntity, createRosterMemberFromEntity, createSeedSnapshot, instantiateRosterMember, uid } from "../domain/factories";
 import { configureEntityHP, damageEntity, healEntity, normalizeEntityHealth, recordDeathSave, reviveEntity, setEntityHP, setTempHP, stabilizeEntity } from "../domain/hit-points";
-import { resetInitiative, rollAll, rollInitiative, sortInitiative } from "../domain/initiative";
+import { resetInitiative, rollAll, setInitiative, sortInitiative } from "../domain/initiative";
 import { withLog } from "../domain/logging";
 import { beginCombat, delayTurn, endRound, nextTurn, previousTurn, removeEntity, returnToStaging } from "../domain/turn-flow";
 import type { ActiveEffect, AppPanel, AppSnapshot, ContentPackDocument, EffectDefinition, Encounter, EncounterEntity, RosterMember, RulesetId } from "../domain/types";
@@ -339,7 +339,6 @@ export function App() {
     roster={snapshot.roster}
     encounterEntityIds={rosterIds}
     packs={snapshot.contentPacks}
-    effects={effects}
     onAddNote={(text) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: [...entity.notes, { id: uid("note"), timestamp: Date.now(), text }] })) : commit((current) => ({ ...current, sessionNotes: [...current.sessionNotes, { id: uid("note"), timestamp: Date.now(), text }] }))}
     onUpdateNote={(id, text) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.map((note) => note.id === id ? { ...note, text } : note) })) : commit((current) => ({ ...current, sessionNotes: current.sessionNotes.map((note) => note.id === id ? { ...note, text } : note) }))}
     onRemoveNote={(id, text) => setConfirmation({ title: "Delete this note?", message: `“${text}”`, actionLabel: "Delete Entry", className: "modal--note-delete", hideClose: true, action: () => { if (notesEntityId) mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.filter((note) => note.id !== id) })); else commit((current) => ({ ...current, sessionNotes: current.sessionNotes.filter((note) => note.id !== id) })); setConfirmation(null); } })}
@@ -384,7 +383,7 @@ export function App() {
         onEditDirtyChange={setEditingEntityDirty}
         onHealthAction={healthAction}
         onConfigureHealth={(entity, currentHP, maxHP) => mutateEntity(entity.id, (current) => syncStabilizedEffect(configureEntityHP(current, currentHP, maxHP)))}
-        onRoll={(entity) => mutateEntity(entity.id, rollInitiative)}
+        onInitiativeChange={(entity, initiative) => mutateEntity(entity.id, (current) => setInitiative(current, initiative))}
         effects={effects}
         onAddEffect={(entity: EncounterEntity, definition: EffectDefinition, duration: number | null) => mutateEntity(entity.id, (current) => current.effects.some((effect) => effect.definitionId === definition.id) ? current : { ...current, effects: [...current.effects, activateEffect(definition, duration, { entityId: encounter.activeEntityId ?? entity.id, currentRound: encounter.activeEntityId ? encounter.round : undefined })] }, `${definition.name} applied to ${entity.name}.`)}
         onUpdateEffect={(entity: EncounterEntity, effectId: string, changes: Partial<ActiveEffect>) => mutateEntity(entity.id, (current) => ({ ...current, effects: current.effects.map((effect) => effect.id === effectId ? { ...effect, ...changes } : effect) }))}

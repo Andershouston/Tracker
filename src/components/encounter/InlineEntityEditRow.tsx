@@ -14,7 +14,7 @@ const typeOptions: Array<{ type: EntityType; label: string; icon: string }> = [
   { type: "PC", label: "Player", icon: "/icons/ui/player.svg" },
   { type: "Enemy", label: "Enemy", icon: "/icons/ui/enemy.svg" },
   { type: "Ally", label: "Ally", icon: "/icons/ui/ally.svg" },
-  { type: "Neutral", label: "NPC", icon: "/icons/ui/entity-default.svg" },
+  { type: "Neutral", label: "NPC", icon: "/icons/ui/npc.svg" },
 ];
 
 const integer = (value: string) => /^[+-]?\d+$/.test(value) ? Number(value) : undefined;

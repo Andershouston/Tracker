@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { QUICK_REFERENCES, type QuickReferenceSection } from "../content/quick-reference";
-import type { AppPanel, CombatLogEntry, ContentPackDocument, EffectDefinition, EncounterEntity, RosterMember, SessionNote } from "../domain/types";
+import type { AppPanel, CombatLogEntry, ContentPackDocument, EncounterEntity, RosterMember, SessionNote } from "../domain/types";
 import { ContentLibrary } from "./ContentLibrary";
 import { Button } from "./shared/Button";
 import { EmptyState } from "./shared/EmptyState";
@@ -72,38 +72,70 @@ function NoteEntry({ note, onUpdate, onRemove }: { note: SessionNote; onUpdate: 
   return <article className="note-entry"><header className="note-entry__meta"><time dateTime={date.toISOString()}><strong>{dateLabel}</strong><span>»</span><em>{timeLabel}</em></time><div className="note-entry__actions"><button aria-label="Edit note" aria-pressed={editing} onClick={() => editing ? cancel() : setEditing(true)}><img src="/icons/ui/note-edit.svg" alt="" /></button><button aria-label="Delete note" onClick={() => onRemove(note.id, note.text)}><img src="/icons/ui/note-delete.svg" alt="" /></button></div></header><div className={`note-entry__content${editing ? " is-editing" : ""}`}>{editing ? <><textarea autoFocus value={text} onInput={(event) => setText(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); cancel(); } if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); save(); } }} /><div className="note-entry__edit-actions"><Button compact tone="quiet" onClick={cancel}>Discard edits</Button><Button compact onClick={save} disabled={!text.trim()}>Save</Button></div></> : <p>{note.text}</p>}</div></article>;
 }
 
-const referenceKeyByPanel = {
-  "reference-movement": "movement",
-  "reference-actions": "actions",
-  "reference-bonus": "bonus",
-  "reference-reactions": "reactions",
-} as const;
+type ReferenceKey = keyof typeof QUICK_REFERENCES;
 
-function ReferencePanel({ panel, effects }: { panel: Extract<AppPanel, `reference-${string}`> | "conditions"; effects: EffectDefinition[] }) {
+const referenceOptions: Array<{ key: ReferenceKey; label: string }> = [
+  { key: "movement", label: "Movement" },
+  { key: "actions", label: "Actions" },
+  { key: "reactions", label: "Reactions" },
+  { key: "bonus", label: "Bonus Actions" },
+];
+
+const movementIcons: Record<string, string> = {
+  move: "/icons/reference/move.svg",
+  climb: "/icons/reference/climb.svg",
+  swim: "/icons/reference/swim.svg",
+  "drop-prone": "/icons/reference/drop-prone.svg",
+  crawl: "/icons/reference/crawl.svg",
+  stand: "/icons/reference/crawl.svg",
+  "high-jump": "/icons/reference/jump.svg",
+  "long-jump": "/icons/reference/jump.svg",
+  flying: "/icons/reference/flying.svg",
+  "creature-space": "/icons/reference/creature-space.svg",
+  "difficult-terrain": "/icons/reference/difficult-terrain.svg",
+  improvise: "/icons/reference/improvise.svg",
+  "grapple-move": "/icons/reference/grapple-move.svg",
+};
+
+const referenceIcon = (key: ReferenceKey, entryId: string) => key === "movement"
+  ? movementIcons[entryId] ?? "/icons/ui/reference-item.svg"
+  : key === "actions"
+    ? "/icons/ui/rail-actions.svg"
+    : key === "bonus"
+      ? "/icons/ui/rail-bonus.svg"
+      : "/icons/ui/rail-reactions.svg";
+
+function ReferencePanel() {
   const [query, setQuery] = useState("");
+  const [activeReference, setActiveReference] = useState<ReferenceKey>("movement");
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const section: QuickReferenceSection = panel === "conditions" ? {
-    title: "Conditions",
-    qualifier: "Rules reference",
-    introduction: "Conditions alter a creature's capabilities in a variety of ways. Search the installed content for a quick reminder.",
-    entries: effects.map((effect) => ({ id: effect.id, title: effect.name, summary: effect.category.replace(/^./, (letter) => letter.toUpperCase()), description: effect.description })),
-  } : QUICK_REFERENCES[referenceKeyByPanel[panel]];
+  const section: QuickReferenceSection = QUICK_REFERENCES[activeReference];
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const entries = normalizedQuery ? section.entries.filter((entry) => `${entry.title} ${entry.summary} ${entry.description ?? ""}`.toLocaleLowerCase().includes(normalizedQuery)) : section.entries;
-  const icon = panel === "conditions" ? "/icons/ui/rail-conditions.svg" : panel === "reference-movement" ? "/icons/ui/rail-movement.svg" : panel === "reference-actions" ? "/icons/ui/rail-actions.svg" : panel === "reference-bonus" ? "/icons/ui/rail-bonus.svg" : "/icons/ui/rail-reactions.svg";
 
   return <div className="reference-panel">
     <div className="reference-heading"><strong>Reference</strong></div>
-    <label className="reference-search"><img src="/icons/ui/reference-search.svg" alt="" /><span className="sr-only">Search reference</span><input value={query} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Search for..." /></label>
+    <div className="reference-tools">
+      <label className="reference-search"><img src="/icons/reference/search.svg" alt="" /><span className="sr-only">Search reference</span><input value={query} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Search for..." /></label>
+      <div className="reference-filters" role="tablist" aria-label="Rule type">
+        {referenceOptions.map((option) => <button
+          key={option.key}
+          type="button"
+          role="tab"
+          aria-selected={activeReference === option.key}
+          onClick={() => { setActiveReference(option.key); setExpandedId(null); }}
+        >{option.label}</button>)}
+      </div>
+    </div>
     <div className="reference-content">
       <div className="reference-section-title"><strong>{section.title}</strong><span>—</span><em>{section.qualifier}</em></div>
       <p className="reference-introduction">{section.introduction}</p>
       {!entries.length ? <EmptyState title="No matching reference">Try another term.</EmptyState> : entries.map((entry, index) => {
         const expanded = expandedId === entry.id || (!normalizedQuery && expandedId === null && index === 0 && Boolean(entry.description));
         return <article className={`reference-entry${expanded ? " is-expanded" : ""}`} key={entry.id}>
-          <span className="reference-entry__icon"><img src={panel === "reference-movement" ? "/icons/ui/reference-item.svg" : icon} alt="" /></span>
+          <span className="reference-entry__icon"><img src={referenceIcon(activeReference, entry.id)} alt="" /></span>
           <button type="button" className="reference-entry__body" aria-expanded={entry.description ? expanded : undefined} onClick={() => entry.description && setExpandedId(expanded ? "__none__" : entry.id)}>
-            <span className="reference-entry__title"><strong>{entry.title}</strong>{entry.description && <img src="/icons/ui/reference-chevron.svg" alt="" />}</span>
+            <span className="reference-entry__title"><strong>{entry.title}</strong>{entry.description && <img src={expanded ? "/icons/reference/chevron-expanded.svg" : "/icons/reference/chevron.svg"} alt="" />}</span>
             <small>{entry.summary}</small>
             {expanded && entry.description && <p>{entry.description}</p>}
           </button>
@@ -147,7 +179,7 @@ function RosterPanel({ roster, encounterEntityIds, onToggle, onEdit, onArchive, 
   </div>;
 }
 
-export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, roster, encounterEntityIds, packs, effects, onAddNote, onUpdateNote, onRemoveNote, onRosterToggle, onRosterEdit, onRosterArchive, onRosterRemove, onRosterCreate, onPackInstall, onPackRemove }: {
+export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, roster, encounterEntityIds, packs, onAddNote, onUpdateNote, onRemoveNote, onRosterToggle, onRosterEdit, onRosterArchive, onRosterRemove, onRosterCreate, onPackInstall, onPackRemove }: {
   panel: AppPanel;
   onClose: () => void;
   log: CombatLogEntry[];
@@ -156,7 +188,6 @@ export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, 
   roster: RosterMember[];
   encounterEntityIds: Set<string>;
   packs: ContentPackDocument[];
-  effects: EffectDefinition[];
   onAddNote: (text: string) => void;
   onUpdateNote: (id: string, text: string) => void;
   onRemoveNote: (id: string, text: string) => void;
@@ -168,6 +199,6 @@ export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, 
   onPackInstall: (pack: ContentPackDocument) => void;
   onPackRemove: (packId: string) => void;
 }) {
-  const isReference = panel === "conditions" || panel.startsWith("reference-");
-  return <aside className={`aside-panel aside-panel--${isReference ? "reference" : panel}`}><button className="aside-close" aria-label="Close panel" onClick={onClose}><img src="/icons/ui/log-close.svg" alt="" /></button>{panel === "log" && <LogPanel entries={log} />}{panel === "notes" && <NotesPanel notes={sessionNotes} entity={selectedEntity} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} />}{panel === "roster" && <RosterPanel roster={roster} encounterEntityIds={encounterEntityIds} onToggle={onRosterToggle} onEdit={onRosterEdit} onArchive={onRosterArchive} onRemove={onRosterRemove} onCreate={onRosterCreate} />}{panel === "library" && <ContentLibrary packs={packs} onInstall={onPackInstall} onRemove={onPackRemove} />}{isReference && <ReferencePanel key={panel} panel={panel as Extract<AppPanel, `reference-${string}`> | "conditions"} effects={effects} />}</aside>;
+  const isReference = panel === "reference" || panel === "conditions" || panel.startsWith("reference-");
+  return <aside className={`aside-panel aside-panel--${isReference ? "reference" : panel}`}><button className="aside-close" aria-label="Close panel" onClick={onClose}><img src={isReference ? "/icons/reference/close.svg" : "/icons/ui/log-close.svg"} alt="" /></button>{panel === "log" && <LogPanel entries={log} />}{panel === "notes" && <NotesPanel notes={sessionNotes} entity={selectedEntity} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} />}{panel === "roster" && <RosterPanel roster={roster} encounterEntityIds={encounterEntityIds} onToggle={onRosterToggle} onEdit={onRosterEdit} onArchive={onRosterArchive} onRemove={onRosterRemove} onCreate={onRosterCreate} />}{panel === "library" && <ContentLibrary packs={packs} onInstall={onPackInstall} onRemove={onPackRemove} />}{isReference && <ReferencePanel />}</aside>;
 }

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Popover } from "radix-ui";
 import type { ActiveEffect, EffectTick } from "../../domain/types";
-import { Button } from "../shared/Button";
 import { SelectField } from "../shared/SelectField";
 
 interface EffectManagerPopoverProps {
@@ -25,6 +24,6 @@ export function EffectManagerPopover({ effect, onUpdate, onRemove, onClose }: Ef
       <label className="field"><span>Remaining rounds</span><div className="effect-manager__stepper"><button type="button" aria-label="Decrease duration" disabled={duration === "" || Number(duration) <= 1} onClick={() => commitDuration(String(Math.max(1, Number(duration) - 1)))}>−</button><input inputMode="numeric" min="1" value={duration} placeholder="∞" aria-label="Remaining rounds" onInput={(event) => setDuration(event.currentTarget.value)} onBlur={() => commitDuration(duration)} onKeyDown={(event) => { if (event.key === "Enter") commitDuration(duration); }} /><button type="button" aria-label="Increase duration" onClick={() => commitDuration(String(duration === "" ? 1 : Number(duration) + 1))}>+</button></div></label>
       <label className="field"><span>Ticks at</span><SelectField ariaLabel="Effect duration timing" value={effect.tickAt} onValueChange={(tickAt: EffectTick) => onUpdate({ tickAt })} options={[{ value: "turn-start", label: "Turn start" }, { value: "turn-end", label: "Turn end" }, { value: "manual", label: "Manual" }]} /></label>
     </div>
-    <div className="effect-manager__actions"><Button compact tone="danger" onClick={() => { onRemove(); onClose(); }}>Remove effect</Button></div>
+    <div className="effect-manager__actions"><button type="button" className="effect-manager__remove" onClick={() => { onRemove(); onClose(); }}>Remove effect</button></div>
   </Popover.Content></Popover.Portal>;
 }

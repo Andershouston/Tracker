@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { durationToRounds, parseRecentEffects } from "./EffectPicker";
+import type { EffectDefinition } from "../../domain/types";
+import { durationToRounds, parseRecentEffects, rankEffectMatches } from "./EffectPicker";
+
+const effect = (id: string, name: string, description: string): EffectDefinition => ({
+  id,
+  name,
+  description,
+  category: "neutral",
+  duration: { default: null, tickAt: "manual" },
+});
+
+describe("effect search ranking", () => {
+  it("ranks exact and partial name matches before description-only matches", () => {
+    const effects = [
+      effect("dodge", "Dodge", "Attacks against you have disadvantage."),
+      effect("disadvantaged", "Disadvantaged", "Roll two d20s."),
+      effect("disadvantage", "Disadvantage", "Roll two d20s and use the lower result."),
+      effect("marked", "Marked", "The next attack is made with disadvantage."),
+    ];
+
+    expect(rankEffectMatches(effects, "disadvantage").map((entry) => entry.id)).toEqual([
+      "disadvantage",
+      "disadvantaged",
+      "dodge",
+      "marked",
+    ]);
+  });
+});
 
 describe("custom effect duration conversion", () => {
   it("stores rounds directly", () => expect(durationToRounds("3", "rounds")).toBe(3));

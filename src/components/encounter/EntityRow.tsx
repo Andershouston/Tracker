@@ -20,7 +20,7 @@ interface EntityRowProps {
   onEditDirtyChange: (dirty: boolean) => void;
   onHealthAction: (action: "damage" | "heal" | "temp" | "set", amount: number) => void;
   onConfigureHealth: (currentHP: number | undefined, maxHP: number | undefined) => void;
-  onRoll: () => void;
+  onInitiativeChange: (initiative: number | null) => void;
   effects: EffectDefinition[];
   onAddEffect: (definition: EffectDefinition, duration: number | null) => void;
   onUpdateEffect: (effectId: string, changes: Partial<ActiveEffect>) => void;
@@ -68,6 +68,27 @@ export function EntityRow(props: EntityRowProps) {
   const stateIcon = iconState === "alive" ? <img src={aliveIcon} alt="" /> : <span className={`entity-type__state-icon entity-type__state-icon--${iconState}`} aria-hidden="true" />;
   const inRoster = props.inRoster;
 
+  const initiativeControl = props.staging
+    ? <label className="initiative initiative--editable" title="Initiative">
+        <img src="/icons/ui/initiative.svg" alt="" />
+        <input
+          type="number"
+          step="1"
+          inputMode="numeric"
+          aria-label={`Initiative for ${entity.name}`}
+          placeholder="—"
+          value={entity.initiative ?? ""}
+          onInput={(event) => {
+            const initiative = event.currentTarget.valueAsNumber;
+            props.onInitiativeChange(Number.isFinite(initiative) ? Math.trunc(initiative) : null);
+          }}
+        />
+      </label>
+    : <span className="initiative initiative--readonly" title="Initiative">
+        <img src="/icons/ui/initiative.svg" alt="" />
+        <span>{entity.initiative ?? "—"}</span>
+      </span>;
+
   const healthControl = <button
     className={`health${hpOpen ? " is-engaged" : ""}`}
     onClick={() => {
@@ -98,7 +119,7 @@ export function EntityRow(props: EntityRowProps) {
           {props.staging || isDead
             ? <span className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type === "Neutral" ? "NPC" : entity.type} · ${iconStateLabel}`}>{stateIcon}</span>
             : <button className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type} · ${iconStateLabel} · toggle reaction used`} onClick={props.onReaction}>{stateIcon}</button>}
-          <button className={`initiative${entity.hasRolledInitiative ? " is-rolled" : ""}`} onClick={props.onRoll} title={entity.hasRolledInitiative ? "Roll initiative again" : "Roll initiative"}><img src="/icons/ui/initiative.svg" alt="" /><span>{entity.hasRolledInitiative ? entity.initiative : "Roll"}</span></button>
+          {initiativeControl}
           <span className="entity-name">{entity.name}</span>
           {!isDead && !isDying && <span className="armor" title="Armor Class"><img src="/icons/ui/shield.svg" alt="" />{entity.armorClass}</span>}
           {!isDead && <Popover.Root open={hpOpen} onOpenChange={(open) => { setHpOpen(open); if (open) setMenuOpen(false); }}>

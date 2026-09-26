@@ -61,6 +61,30 @@ function durationLabel(effect: EffectDefinition) {
   return duration === null ? "∞" : `${duration}r`;
 }
 
+export function rankEffectMatches(effects: EffectDefinition[], query: string): EffectDefinition[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return effects;
+
+  return effects
+    .map((effect, index) => {
+      const name = effect.name.toLocaleLowerCase();
+      const description = effect.description.toLocaleLowerCase();
+      const rank = name === normalizedQuery
+        ? 0
+        : name.startsWith(normalizedQuery)
+          ? 1
+          : name.includes(normalizedQuery)
+            ? 2
+            : description.includes(normalizedQuery)
+              ? 3
+              : null;
+      return { effect, index, rank };
+    })
+    .filter((match): match is { effect: EffectDefinition; index: number; rank: number } => match.rank !== null)
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((match) => match.effect);
+}
+
 interface EffectPickerProps {
   entityName: string;
   effects: EffectDefinition[];
@@ -85,7 +109,7 @@ export function EffectPicker({ effects, activeDefinitionIds, onAdd, onClose }: E
     ...effects,
     ...recentEffects.flatMap((entry) => entry.definition ? [entry.definition] : []),
   ].map((effect) => [effect.id, effect])).values()), [effects, recentEffects]);
-  const matches = useMemo(() => definitions.filter((effect) => `${effect.name} ${effect.description}`.toLocaleLowerCase().includes(normalizedQuery)), [definitions, normalizedQuery]);
+  const matches = useMemo(() => rankEffectMatches(definitions, normalizedQuery), [definitions, normalizedQuery]);
   const recent = normalizedQuery ? [] : recentEffects.map((entry) => definitions.find((effect) => effect.id === entry.id)).filter((effect): effect is EffectDefinition => Boolean(effect));
   const recentSet = new Set(recent.map((effect) => effect.id));
   const results = normalizedQuery ? matches : matches.filter((effect) => !recentSet.has(effect.id));

@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { createEncounter, createEntity } from "./factories";
-import { rollAll } from "./initiative";
+import { rollAll, setInitiative } from "./initiative";
+
+describe("manual initiative", () => {
+  it("stores a manually entered initiative", () => {
+    const entity = setInitiative(createEntity(), 17);
+
+    expect(entity.initiative).toBe(17);
+    expect(entity.hasRolledInitiative).toBe(true);
+  });
+
+  it("returns an entity to the unfilled initiative state when cleared", () => {
+    const entity = setInitiative(createEntity({ initiative: 17, hasRolledInitiative: true }), null);
+
+    expect(entity.initiative).toBeNull();
+    expect(entity.hasRolledInitiative).toBe(false);
+  });
+});
 
 describe("initiative batches", () => {
   it("rerolls every matching entity and leaves other types untouched", () => {

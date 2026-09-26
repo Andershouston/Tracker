@@ -14,7 +14,7 @@ interface TurnOrderProps {
   onEditDirtyChange: (dirty: boolean) => void;
   onHealthAction: (entity: EncounterEntity, action: "damage" | "heal" | "temp" | "set", amount: number) => void;
   onConfigureHealth: (entity: EncounterEntity, currentHP: number | undefined, maxHP: number | undefined) => void;
-  onRoll: (entity: EncounterEntity) => void;
+  onInitiativeChange: (entity: EncounterEntity, initiative: number | null) => void;
   effects: EffectDefinition[];
   onAddEffect: (entity: EncounterEntity, definition: EffectDefinition, duration: number | null) => void;
   onUpdateEffect: (entity: EncounterEntity, effectId: string, changes: Partial<ActiveEffect>) => void;
@@ -61,7 +61,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onEditDirtyChange={props.onEditDirtyChange}
       onHealthAction={(action, amount) => props.onHealthAction(entity, action, amount)}
       onConfigureHealth={(currentHP, maxHP) => props.onConfigureHealth(entity, currentHP, maxHP)}
-      onRoll={() => props.onRoll(entity)}
+      onInitiativeChange={(initiative) => props.onInitiativeChange(entity, initiative)}
       effects={props.effects}
       onAddEffect={(definition, duration) => props.onAddEffect(entity, definition, duration)}
       onUpdateEffect={(effectId, changes) => props.onUpdateEffect(entity, effectId, changes)}

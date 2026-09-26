@@ -1,5 +1,9 @@
 import type { Encounter, EncounterEntity } from "./types";
 
+export function setInitiative(entity: EncounterEntity, initiative: number | null): EncounterEntity {
+  return { ...entity, initiative, hasRolledInitiative: initiative !== null };
+}
+
 export function rollInitiative(entity: EncounterEntity, random = Math.random): EncounterEntity {
   const roll = Math.floor(random() * 20) + 1 + entity.initiativeModifier;
   return { ...entity, initiative: roll, hasRolledInitiative: true };
