@@ -15,6 +15,7 @@ interface EntityRowProps {
   active: boolean;
   staging: boolean;
   editing: boolean;
+  selected: boolean;
   onEdit: () => void;
   onSaveEdit: (entity: EncounterEntity) => void;
   onCancelEdit: () => void;
@@ -31,6 +32,7 @@ interface EntityRowProps {
   onDuplicate: () => void;
   onToggleRoster: () => void;
   onSaveToBestiary: () => void;
+  onToggleSelection: () => void;
   onDelay: () => void;
   onHold: () => void;
   onDodge: () => void;
@@ -166,7 +168,7 @@ export function EntityRow(props: EntityRowProps) {
 
   return <article
     id={`entity-${entity.id}`}
-    className={`entity-row${props.staging ? " entity-row--staging" : ""}${props.active ? " is-active" : ""}${stateClass}${typeClass}`}
+    className={`entity-row${props.staging ? " entity-row--staging" : ""}${props.active ? " is-active" : ""}${props.selected ? " is-selected" : ""}${stateClass}${typeClass}`}
     draggable
     onDragStart={props.onDragStart}
     onDragOver={(event) => event.preventDefault()}
@@ -177,7 +179,9 @@ export function EntityRow(props: EntityRowProps) {
       <div className="entity-row__content">
         <div className={`entity-row__stats${isDead ? " entity-row__stats--dead" : ""}${isDying ? " entity-row__stats--dying" : ""}`}>
           {props.staging || isDead
-            ? <span className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type === "Neutral" ? "NPC" : entity.type} · ${iconStateLabel}`}>{stateIcon}</span>
+            ? props.staging
+              ? <button className={`entity-type entity-type--${entity.type.toLowerCase()} entity-type--selectable`} title={`${props.selected ? "Deselect" : "Select"} ${entity.name}`} aria-label={`${props.selected ? "Deselect" : "Select"} ${entity.name}`} aria-pressed={props.selected} onClick={props.onToggleSelection}>{props.selected ? <span className="entity-type__selection-check" aria-hidden="true" /> : stateIcon}</button>
+              : <span className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type === "Neutral" ? "NPC" : entity.type} · ${iconStateLabel}`}>{stateIcon}</span>
             : <button className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type} · ${iconStateLabel} · toggle reaction used`} onClick={props.onReaction}>{stateIcon}</button>}
           {initiativeControl}
           {props.staging

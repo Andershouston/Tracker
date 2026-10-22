@@ -8,6 +8,7 @@ interface TurnOrderProps {
   rosterIds: ReadonlySet<string>;
   combatEditing: boolean;
   editingEntityId: string | null;
+  selectedEntityIds: ReadonlySet<string>;
   onEdit: (entity: EncounterEntity) => void;
   onSaveEdit: (entity: EncounterEntity) => void;
   onCancelEdit: () => void;
@@ -24,6 +25,7 @@ interface TurnOrderProps {
   onDuplicate: (entity: EncounterEntity) => void;
   onToggleRoster: (entity: EncounterEntity) => void;
   onSaveToBestiary: (entity: EncounterEntity) => void;
+  onToggleSelection: (entity: EncounterEntity) => void;
   onDelay: () => void;
   onHold: (entity: EncounterEntity) => void;
   onDodge: (entity: EncounterEntity) => void;
@@ -57,6 +59,7 @@ export function TurnOrder(props: TurnOrderProps) {
       active={props.encounter.mode === "active" && !props.combatEditing && props.encounter.activeEntityId === entity.id}
       staging={staging}
       editing={props.editingEntityId === entity.id}
+      selected={props.selectedEntityIds.has(entity.id)}
       onEdit={() => props.onEdit(entity)}
       onSaveEdit={props.onSaveEdit}
       onCancelEdit={props.onCancelEdit}
@@ -73,6 +76,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onDuplicate={() => props.onDuplicate(entity)}
       onToggleRoster={() => props.onToggleRoster(entity)}
       onSaveToBestiary={() => props.onSaveToBestiary(entity)}
+      onToggleSelection={() => props.onToggleSelection(entity)}
       onDelay={props.onDelay}
       onHold={() => props.onHold(entity)}
       onDodge={() => props.onDodge(entity)}

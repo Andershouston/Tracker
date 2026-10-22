@@ -2,7 +2,7 @@ import type { AppPanel, Encounter } from "../domain/types";
 import { DropdownMenu } from "radix-ui";
 import { Button } from "./shared/Button";
 
-export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave, onPanel, onExport, onExportAll, onImport, onDelete, onShortcuts, onEndCombat, onRemoveDead, onClearEffects, onResetHP }: {
+export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave, onPanel, onExport, onImport, onDelete, onShortcuts, onEndCombat, onRemoveDead, onClearEffects, onResetHP }: {
   encounter: Encounter;
   saveStatus: "saved" | "saving" | "error";
   onRename: () => void;
@@ -11,7 +11,6 @@ export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave,
   onSave: () => void;
   onPanel: (panel: AppPanel) => void;
   onExport: () => void;
-  onExportAll: () => void;
   onImport: () => void;
   onDelete: () => void;
   onShortcuts: () => void;
@@ -46,6 +45,8 @@ export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave,
             <DropdownMenu.Item className="mobile-menu-action" onSelect={onLoad}>Load encounter</DropdownMenu.Item>
             <DropdownMenu.Item className="mobile-menu-action" onSelect={onSave}>Save locally</DropdownMenu.Item>
             <DropdownMenu.Label className="header-menu__label">Panels</DropdownMenu.Label>
+            <DropdownMenu.Item onSelect={() => onPanel("log")}>Combat log</DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={() => onPanel("reference")}>Rules reference</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={() => onPanel("roster")}>Party roster</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={() => onPanel("bestiary")}>Bestiary</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onShortcuts}>Keyboard shortcuts</DropdownMenu.Item>
@@ -53,7 +54,6 @@ export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave,
             {encounter.mode === "active" && <DropdownMenu.Item onSelect={onEndCombat}>End combat</DropdownMenu.Item>}
             <DropdownMenu.Item onSelect={onExport}>Export data…</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onImport}>Import data…</DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={onExportAll}>Export all data</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onRemoveDead}>Remove all dead</DropdownMenu.Item>
             <DropdownMenu.Label className="header-menu__label">Danger zone</DropdownMenu.Label>
             <DropdownMenu.Item className="danger-link" onSelect={onClearEffects}>Clear all effects</DropdownMenu.Item>

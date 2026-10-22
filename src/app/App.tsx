@@ -77,6 +77,7 @@ export function App() {
   const [independentName, setIndependentName] = useState("");
   const [bestiaryEditor, setBestiaryEditor] = useState<BestiaryEntry | null>(null);
   const [importKind, setImportKind] = useState<ImportKind>("encounter");
+  const [selectedEntityIds, setSelectedEntityIds] = useState<Set<string>>(() => new Set());
   const importInput = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
@@ -137,6 +138,16 @@ export function App() {
     : undefined;
   const effects = useMemo(() => encounter && snapshot ? availableEffects(snapshot.contentPacks, encounter.rulesetId) : [], [encounter?.rulesetId, snapshot?.contentPacks]);
   const bestiaryEntries = useMemo(() => snapshot ? collectBestiaryEntries(snapshot.bestiary, snapshot.contentPacks) : [], [snapshot?.bestiary, snapshot?.contentPacks]);
+  const selectedEntities = useMemo(() => encounter?.entities.filter((entity) => selectedEntityIds.has(entity.id)) ?? [], [encounter?.entities, selectedEntityIds]);
+
+  useEffect(() => {
+    setSelectedEntityIds((current) => {
+      if (encounter?.mode === "active" && !combatEditing) return current.size ? new Set() : current;
+      const available = new Set(encounter?.entities.map((entity) => entity.id) ?? []);
+      const next = new Set([...current].filter((id) => available.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [encounter?.id, encounter?.entities, encounter?.mode, combatEditing]);
 
   const commit = useCallback((updater: (current: AppSnapshot) => AppSnapshot) => setSnapshot((current) => current ? updater(current) : current), []);
   const updateEncounter = useCallback((updater: (current: Encounter) => Encounter) => {
@@ -220,20 +231,70 @@ export function App() {
     },
   });
 
-  const saveEntityToBestiary = (entity: EncounterEntity) => {
+  const saveEntityToBestiary = (entity: EncounterEntity, announce = true) => {
     const sourced = entity.sourceRef;
     if (sourced?.packId === "local-bestiary") {
       commit((current) => ({ ...current, bestiary: current.bestiary.map((creature) => creature.id === sourced.entryId ? creatureTemplateFromEntity(entity, sourced.rulesetId, creature.id) : creature) }));
-      showToast(`${entity.name} updated in the bestiary.`);
+      if (announce) showToast(`${entity.name} updated in the bestiary.`);
       return;
     }
     if (sourced?.packId) {
       commit((current) => ({ ...current, contentPacks: current.contentPacks.map((pack) => pack.pack.id === sourced.packId ? { ...pack, content: { ...pack.content, creatures: pack.content.creatures.map((creature) => creature.id === sourced.entryId ? creatureTemplateFromEntity(entity, sourced.rulesetId, creature.id) : creature) } } : pack) }));
-      showToast(`${entity.name} updated in the bestiary.`);
+      if (announce) showToast(`${entity.name} updated in the bestiary.`);
       return;
     }
     commit((current) => ({ ...current, bestiary: [...current.bestiary, creatureTemplateFromEntity(entity, encounter?.rulesetId ?? "dnd5e-2014-srd-5.1")] }));
-    showToast(`${entity.name.replace(/\s+\d+$/, "")} saved to the bestiary.`);
+    if (announce) showToast(`${entity.name.replace(/\s+\d+$/, "")} saved to the bestiary.`);
+  };
+
+  const toggleEntitySelection = (entity: EncounterEntity) => setSelectedEntityIds((current) => {
+    const next = new Set(current);
+    if (next.has(entity.id)) next.delete(entity.id);
+    else next.add(entity.id);
+    return next;
+  });
+
+  const addSelectedToRoster = () => {
+    const selected = new Set(selectedEntityIds);
+    const candidates = selectedEntities.filter((entity) => !entity.rosterId || !snapshot?.roster.some((member) => member.rosterId === entity.rosterId));
+    commit((current) => {
+      const nextRoster = [...current.roster];
+      const encounters = current.encounters.map((item) => item.id !== encounter?.id ? item : {
+        ...item,
+        entities: item.entities.map((entity) => {
+          if (!selected.has(entity.id) || (entity.rosterId && nextRoster.some((member) => member.rosterId === entity.rosterId))) return entity;
+          const member = createRosterMemberFromEntity(entity);
+          nextRoster.push(member);
+          return { ...entity, rosterId: member.rosterId, isPersistent: true };
+        }),
+      });
+      return { ...current, encounters, roster: nextRoster };
+    });
+    showToast(`${candidates.length} selected ${candidates.length === 1 ? "entity" : "entities"} added to the roster.`);
+  };
+
+  const saveSelectedToBestiary = () => {
+    const unique = new Map<string, EncounterEntity>();
+    selectedEntities.filter((entity) => entity.type === "Enemy").forEach((entity) => {
+      const key = entity.sourceRef ? `${entity.sourceRef.packId}:${entity.sourceRef.entryId}` : canonicalEntityName(entity.name).toLocaleLowerCase();
+      if (!unique.has(key)) unique.set(key, entity);
+    });
+    unique.forEach((entity) => saveEntityToBestiary(entity, false));
+    showToast(`${unique.size} ${unique.size === 1 ? "creature" : "creatures"} saved to the bestiary.`);
+  };
+
+  const deleteSelectedEntities = () => {
+    const selected = new Set(selectedEntityIds);
+    setConfirmation({
+      title: `Delete ${selected.size} selected ${selected.size === 1 ? "entity" : "entities"}?`,
+      message: "This removes them from the encounter. Linked roster and bestiary entries are kept.",
+      actionLabel: `Delete ${selected.size}`,
+      action: () => {
+        updateEncounter((current) => [...selected].reduce((next, id) => removeEntity(next, id), current));
+        setSelectedEntityIds(new Set());
+        setConfirmation(null);
+      },
+    });
   };
 
   const saveEntity = (entity: EncounterEntity, statBlockSourceId?: string) => {
@@ -669,7 +730,6 @@ export function App() {
       onSave={() => { void saveSnapshot(snapshot).then(() => showToast("Saved locally.")); }}
       onPanel={togglePanel}
       onExport={() => setDialog("export")}
-      onExportAll={() => exportAll(snapshot)}
       onImport={() => setDialog("import")}
       onDelete={() => setDialog("delete")}
       onShortcuts={() => setDialog("shortcuts")}
@@ -686,6 +746,7 @@ export function App() {
         rosterIds={storedRosterIds}
         combatEditing={combatEditing}
         editingEntityId={editingEntityId}
+        selectedEntityIds={selectedEntityIds}
         onEdit={startEditingEntity}
         onSaveEdit={saveEditedEntity}
         onCancelEdit={cancelEditingEntity}
@@ -702,6 +763,7 @@ export function App() {
         onDuplicate={(entity) => updateEncounter((current) => ({ ...current, entities: [...current.entities, { ...structuredClone(entity), id: uid("entity"), name: nextDuplicateEntityName(entity.name, current.entities.map((item) => item.name)), isPersistent: false, rosterId: null }] }))}
         onToggleRoster={toggleEntityRoster}
         onSaveToBestiary={saveEntityToBestiary}
+        onToggleSelection={toggleEntitySelection}
         onDelay={() => updateEncounter(delayTurn)}
         onHold={(entity) => applyNamedEffect(entity, "readied-action")}
         onDodge={(entity) => applyNamedEffect(entity, "dodge-action")}
@@ -724,8 +786,15 @@ export function App() {
     <ManagementBar
       encounter={encounter}
       combatEditing={combatEditing}
+      selectedCount={selectedEntities.length}
+      selectedRosterCandidateCount={selectedEntities.filter((entity) => !entity.rosterId || !storedRosterIds.has(entity.rosterId)).length}
+      selectedBestiaryCandidateCount={selectedEntities.filter((entity) => entity.type === "Enemy").length}
       onRoster={toggleRosterPanel}
       onBestiary={toggleBestiaryPanel}
+      onClearSelection={() => setSelectedEntityIds(new Set())}
+      onBatchRoster={addSelectedToRoster}
+      onBatchBestiary={saveSelectedToBestiary}
+      onBatchDelete={deleteSelectedEntities}
       onSort={() => updateEncounter(sortInitiative)}
       onRollAll={() => updateEncounter(rollAll)}
       onRollType={(type) => updateEncounter((current) => rollAll(current, type))}
@@ -774,6 +843,7 @@ export function App() {
       <button onClick={() => { exportEncounter(encounter); setDialog(null); }}><img src="/icons/ui/combat.svg" alt="" /><span><strong>Encounter</strong><small>Current entities, turn state, and combat log</small></span></button>
       <button onClick={() => { exportRoster(snapshot.roster); setDialog(null); }}><img src="/icons/ui/roster.svg" alt="" /><span><strong>Roster</strong><small>Reusable player characters, allies, and NPCs</small></span></button>
       <button onClick={() => { exportBestiary([...snapshot.bestiary, ...snapshot.contentPacks.flatMap((pack) => pack.content.creatures)]); setDialog(null); }}><img src="/icons/ui/enemy.svg" alt="" /><span><strong>Bestiary</strong><small>All saved and installed creatures</small></span></button>
+      <button className="transfer-choice--secondary" onClick={() => { exportAll(snapshot); setDialog(null); }}><img src="/icons/ui/save.svg" alt="" /><span><strong>Full backup</strong><small>Every encounter, roster entry, bestiary creature, note, and content pack</small></span></button>
     </div></Modal>}
     {dialog === "import" && <Modal title="Import data" onClose={() => setDialog(null)}><div className="transfer-choices">
       {([[
