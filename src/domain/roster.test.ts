@@ -16,6 +16,7 @@ function snapshotWithLinkedEntity(currentHP: number, maxHP: number) {
   const snapshot: AppSnapshot = {
     encounters: [encounter, otherEncounter],
     roster: [member],
+    bestiary: [],
     contentPacks: [],
     sessionNotes: [],
     settings: { activeEncounterId: encounter.id, activePanel: null, persistenceRequested: true },

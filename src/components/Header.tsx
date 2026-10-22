@@ -47,11 +47,12 @@ export function Header({ encounter, saveStatus, onRename, onNew, onLoad, onSave,
             <DropdownMenu.Item className="mobile-menu-action" onSelect={onSave}>Save locally</DropdownMenu.Item>
             <DropdownMenu.Label className="header-menu__label">Panels</DropdownMenu.Label>
             <DropdownMenu.Item onSelect={() => onPanel("roster")}>Party roster</DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={() => onPanel("bestiary")}>Bestiary</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onShortcuts}>Keyboard shortcuts</DropdownMenu.Item>
             <DropdownMenu.Label className="header-menu__label">Encounter</DropdownMenu.Label>
             {encounter.mode === "active" && <DropdownMenu.Item onSelect={onEndCombat}>End combat</DropdownMenu.Item>}
-            <DropdownMenu.Item onSelect={onExport}>Export encounter</DropdownMenu.Item>
-            <DropdownMenu.Item onSelect={onImport}>Import encounter or backup</DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={onExport}>Export data…</DropdownMenu.Item>
+            <DropdownMenu.Item onSelect={onImport}>Import data…</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onExportAll}>Export all data</DropdownMenu.Item>
             <DropdownMenu.Item onSelect={onRemoveDead}>Remove all dead</DropdownMenu.Item>
             <DropdownMenu.Label className="header-menu__label">Danger zone</DropdownMenu.Label>

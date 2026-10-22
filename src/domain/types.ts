@@ -179,6 +179,7 @@ export type AppPanel =
   | "log"
   | "notes"
   | "roster"
+  | "bestiary"
   | "library"
   | "conditions"
   | "reference"
@@ -207,12 +208,14 @@ export interface AppSettings {
   activeEncounterId: string | null;
   activePanel: AppPanel | null;
   rosterOpen?: boolean;
+  bestiaryOpen?: boolean;
   persistenceRequested: boolean;
 }
 
 export interface AppSnapshot {
   encounters: Encounter[];
   roster: RosterMember[];
+  bestiary: CreatureTemplate[];
   contentPacks: ContentPackDocument[];
   sessionNotes: SessionNote[];
   settings: AppSettings;

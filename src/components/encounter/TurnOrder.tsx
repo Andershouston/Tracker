@@ -23,6 +23,7 @@ interface TurnOrderProps {
   onRemove: (entity: EncounterEntity) => void;
   onDuplicate: (entity: EncounterEntity) => void;
   onToggleRoster: (entity: EncounterEntity) => void;
+  onSaveToBestiary: (entity: EncounterEntity) => void;
   onDelay: () => void;
   onHold: (entity: EncounterEntity) => void;
   onDodge: (entity: EncounterEntity) => void;
@@ -71,6 +72,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onRemove={() => props.onRemove(entity)}
       onDuplicate={() => props.onDuplicate(entity)}
       onToggleRoster={() => props.onToggleRoster(entity)}
+      onSaveToBestiary={() => props.onSaveToBestiary(entity)}
       onDelay={props.onDelay}
       onHold={() => props.onHold(entity)}
       onDodge={() => props.onDodge(entity)}

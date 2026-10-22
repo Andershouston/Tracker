@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AsidePanel } from "../components/AsidePanel";
+import { BestiaryEditor, BestiaryPanel } from "../components/BestiaryPanel";
 import { Header } from "../components/Header";
 import { ManagementBar } from "../components/ManagementBar";
 import { UtilityRail } from "../components/UtilityRail";
@@ -14,10 +15,11 @@ import { BUILTIN_EFFECTS } from "../content/builtin";
 import { DND_2014_CONDITIONS_PACK } from "../content/dnd2014-conditions-pack";
 import { INITIATIVE_TRACKER_EFFECTS_PACK } from "../content/initiative-tracker-effects-pack";
 import { validateContentPack } from "../content/validation";
-import { exportAll, exportEncounter, readJsonFile } from "../data/backup";
+import { exportAll, exportBestiary, exportEncounter, exportRoster, readJsonFile } from "../data/backup";
 import { loadSnapshot, requestPersistentStorage, saveSnapshot } from "../data/database";
 import { importLegacyState } from "../data/legacy-import";
 import { activateEffect } from "../domain/effects";
+import { bestiaryLinkId, collectBestiaryEntries, creatureTemplateFromEntity, instantiateBestiaryEntry, type BestiaryEntry } from "../domain/bestiary";
 import { nextDuplicateEntityName } from "../domain/entity-names";
 import { createEncounter, createEntity, createRosterMemberFromEntity, createSeedSnapshot, instantiateRosterMember, uid } from "../domain/factories";
 import { configureEntityHP, damageEntity, healEntity, normalizeEntityHealth, recordDeathSave, reviveEntity, setEntityHP, setTempHP, stabilizeEntity } from "../domain/hit-points";
@@ -26,10 +28,11 @@ import { withLog } from "../domain/logging";
 import { syncLinkedRosterEntity } from "../domain/roster";
 import { canonicalEntityName, linkedStatBlockEntities, matchingEnemyEntities, nextAvailableEntityName, suggestedIndependentName } from "../domain/stat-block-links";
 import { beginCombat, delayTurn, endRound, nextTurn, previousTurn, removeEntity, returnToStaging } from "../domain/turn-flow";
-import type { ActiveEffect, AppPanel, AppSnapshot, ContentPackDocument, EffectDefinition, Encounter, EncounterEntity, MonsterStatBlock, RosterMember, RulesetId } from "../domain/types";
+import type { ActiveEffect, AppPanel, AppSnapshot, ContentPackDocument, CreatureTemplate, EffectDefinition, Encounter, EncounterEntity, MonsterStatBlock, RosterMember, RulesetId } from "../domain/types";
 import { RULESETS } from "../domain/rulesets";
 
-type Dialog = "new" | "load" | "rename" | "delete" | "shortcuts" | null;
+type Dialog = "new" | "load" | "rename" | "delete" | "shortcuts" | "export" | "import" | null;
+type ImportKind = "encounter" | "roster" | "bestiary" | "backup";
 type SaveStatus = "saved" | "saving" | "error";
 type Confirmation = { title: string; message: string; actionLabel: string; action: () => void; className?: string; hideClose?: boolean };
 type SharedStatBlockUpdate = {
@@ -72,6 +75,8 @@ export function App() {
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [sharedStatBlockUpdate, setSharedStatBlockUpdate] = useState<SharedStatBlockUpdate | null>(null);
   const [independentName, setIndependentName] = useState("");
+  const [bestiaryEditor, setBestiaryEditor] = useState<BestiaryEntry | null>(null);
+  const [importKind, setImportKind] = useState<ImportKind>("encounter");
   const importInput = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
@@ -80,6 +85,7 @@ export function App() {
       const stored = await loadSnapshot();
       const legacy = stored ? null : importLegacyState();
       const initial = stored ?? legacy ?? createSeedSnapshot();
+      initial.bestiary ??= [];
       if (!initial.contentPacks.some((pack) => pack.pack.id === DND_2014_CONDITIONS_PACK.pack.id)) {
         initial.contentPacks = [...initial.contentPacks, structuredClone(DND_2014_CONDITIONS_PACK)];
       }
@@ -119,7 +125,7 @@ export function App() {
 
   useEffect(() => {
     const activePanel = snapshot?.settings.activePanel;
-    if (activePanel && activePanel !== "roster" && activePanel !== "library") setLastPanel(activePanel);
+    if (activePanel && activePanel !== "roster" && activePanel !== "bestiary" && activePanel !== "library") setLastPanel(activePanel);
   }, [snapshot?.settings.activePanel]);
 
   const encounter = useMemo(() => snapshot?.encounters.find((item) => item.id === snapshot.settings.activeEncounterId) ?? snapshot?.encounters[0] ?? null, [snapshot]);
@@ -130,6 +136,7 @@ export function App() {
     ? selectedMatchingEnemies.find((candidate) => candidate.id !== selectedNotesEntity.id && candidate.statBlock)
     : undefined;
   const effects = useMemo(() => encounter && snapshot ? availableEffects(snapshot.contentPacks, encounter.rulesetId) : [], [encounter?.rulesetId, snapshot?.contentPacks]);
+  const bestiaryEntries = useMemo(() => snapshot ? collectBestiaryEntries(snapshot.bestiary, snapshot.contentPacks) : [], [snapshot?.bestiary, snapshot?.contentPacks]);
 
   const commit = useCallback((updater: (current: AppSnapshot) => AppSnapshot) => setSnapshot((current) => current ? updater(current) : current), []);
   const updateEncounter = useCallback((updater: (current: Encounter) => Encounter) => {
@@ -148,10 +155,16 @@ export function App() {
         settings: {
           ...current.settings,
           rosterOpen: !isOpen,
+          bestiaryOpen: false,
           activePanel: current.settings.activePanel === "roster" ? null : current.settings.activePanel,
         },
       };
     });
+  };
+
+  const toggleBestiaryPanel = () => {
+    setNotesEntityId(null);
+    commit((current) => ({ ...current, settings: { ...current.settings, bestiaryOpen: !current.settings.bestiaryOpen, rosterOpen: false, activePanel: current.settings.activePanel === "bestiary" ? null : current.settings.activePanel } }));
   };
 
   const togglePanel = (next: AppPanel | null) => {
@@ -159,8 +172,68 @@ export function App() {
       toggleRosterPanel();
       return;
     }
+    if (next === "bestiary") {
+      toggleBestiaryPanel();
+      return;
+    }
     setNotesEntityId(null);
     commit((current) => ({ ...current, settings: { ...current.settings, activePanel: next === null ? null : current.settings.activePanel === next ? null : next } }));
+  };
+
+  const saveBestiaryEntry = (entry: BestiaryEntry, creature: CreatureTemplate) => {
+    const packId = entry.origin.kind === "pack" ? entry.origin.packId : null;
+    commit((current) => entry.origin.kind === "local"
+      ? { ...current, bestiary: current.bestiary.map((item) => item.id === entry.creature.id ? { ...creature, id: item.id } : item) }
+      : { ...current, contentPacks: current.contentPacks.map((pack) => pack.pack.id === packId ? { ...pack, content: { ...pack.content, creatures: pack.content.creatures.map((item) => item.id === entry.creature.id ? { ...creature, id: item.id } : item) } } : pack) });
+    setBestiaryEditor(null);
+    showToast(`${creature.name} updated in the bestiary.`);
+  };
+
+  const addBestiaryCreature = (entry: BestiaryEntry) => {
+    updateEncounter((current) => {
+      const entity = instantiateBestiaryEntry(entry, current.entities, bestiaryLinkId(entry, current.entities));
+      return withLog({ ...current, entities: [...current.entities, entity] }, "system", `${entity.name} added from the bestiary.`);
+    });
+    showToast(`${entry.creature.name} added to the encounter.`);
+  };
+
+  const duplicateBestiaryEntry = (entry: BestiaryEntry) => {
+    const copy = structuredClone(entry.creature);
+    copy.id = uid("creature");
+    copy.name = `${copy.name} variant`;
+    copy.rulesetCompatibility = [entry.rulesetId];
+    copy.sourceRef = undefined;
+    commit((current) => ({ ...current, bestiary: [...current.bestiary, copy] }));
+    showToast(`${copy.name} added as homebrew.`);
+  };
+
+  const removeBestiaryEntry = (entry: BestiaryEntry) => setConfirmation({
+    title: `Remove ${entry.creature.name} from the bestiary?`,
+    message: "Existing encounter copies will remain unchanged.",
+    actionLabel: "Remove creature",
+    action: () => {
+      const packId = entry.origin.kind === "pack" ? entry.origin.packId : null;
+      commit((current) => entry.origin.kind === "local"
+        ? { ...current, bestiary: current.bestiary.filter((item) => item.id !== entry.creature.id) }
+        : { ...current, contentPacks: current.contentPacks.map((pack) => pack.pack.id === packId ? { ...pack, content: { ...pack.content, creatures: pack.content.creatures.filter((item) => item.id !== entry.creature.id) } } : pack) });
+      setConfirmation(null);
+    },
+  });
+
+  const saveEntityToBestiary = (entity: EncounterEntity) => {
+    const sourced = entity.sourceRef;
+    if (sourced?.packId === "local-bestiary") {
+      commit((current) => ({ ...current, bestiary: current.bestiary.map((creature) => creature.id === sourced.entryId ? creatureTemplateFromEntity(entity, sourced.rulesetId, creature.id) : creature) }));
+      showToast(`${entity.name} updated in the bestiary.`);
+      return;
+    }
+    if (sourced?.packId) {
+      commit((current) => ({ ...current, contentPacks: current.contentPacks.map((pack) => pack.pack.id === sourced.packId ? { ...pack, content: { ...pack.content, creatures: pack.content.creatures.map((creature) => creature.id === sourced.entryId ? creatureTemplateFromEntity(entity, sourced.rulesetId, creature.id) : creature) } } : pack) }));
+      showToast(`${entity.name} updated in the bestiary.`);
+      return;
+    }
+    commit((current) => ({ ...current, bestiary: [...current.bestiary, creatureTemplateFromEntity(entity, encounter?.rulesetId ?? "dnd5e-2014-srd-5.1")] }));
+    showToast(`${entity.name.replace(/\s+\d+$/, "")} saved to the bestiary.`);
   };
 
   const saveEntity = (entity: EncounterEntity, statBlockSourceId?: string) => {
@@ -490,7 +563,7 @@ export function App() {
     if (!file) return;
     try {
       const value = await readJsonFile(file) as Record<string, unknown>;
-      if (value.type === "dmtools-encounter" && value.encounter && typeof value.encounter === "object") {
+      if (importKind === "encounter" && value.type === "dmtools-encounter" && value.encounter && typeof value.encounter === "object") {
         const imported = structuredClone(value.encounter) as Encounter;
         imported.id = uid("encounter");
         imported.name += " (imported)";
@@ -499,10 +572,19 @@ export function App() {
         imported.mode = "staging";
         commit((current) => ({ ...current, encounters: [...current.encounters, imported], settings: { ...current.settings, activeEncounterId: imported.id } }));
         showToast("Encounter imported.");
-      } else if (value.type === "dmtools-backup" && value.snapshot && typeof value.snapshot === "object") {
+      } else if (importKind === "roster" && value.type === "dmtools-roster" && Array.isArray(value.roster)) {
+        const imported = (value.roster as RosterMember[]).map((member) => ({ ...structuredClone(member), id: uid("entity"), rosterId: uid("roster"), initiative: null, hasRolledInitiative: false }));
+        commit((current) => ({ ...current, roster: [...current.roster, ...imported] }));
+        showToast(`${imported.length} roster ${imported.length === 1 ? "entry" : "entries"} imported.`);
+      } else if (importKind === "bestiary" && value.type === "dmtools-bestiary" && Array.isArray(value.bestiary)) {
+        const imported = (value.bestiary as CreatureTemplate[]).map((creature) => ({ ...structuredClone(creature), id: uid("creature"), sourceRef: undefined }));
+        commit((current) => ({ ...current, bestiary: [...current.bestiary, ...imported] }));
+        showToast(`${imported.length} bestiary ${imported.length === 1 ? "entry" : "entries"} imported.`);
+      } else if (importKind === "backup" && value.type === "dmtools-backup" && value.snapshot && typeof value.snapshot === "object") {
         const raw = value.snapshot as AppSnapshot;
         const restored: AppSnapshot = {
           ...raw,
+          bestiary: raw.bestiary ?? [],
           encounters: raw.encounters.map((item) => ({ ...item, entities: item.entities.map((entity) => normalizeEntityHealth({ ...entity, lethalOverflow: entity.lethalOverflow ?? 0 })) })),
           roster: raw.roster.map((member) => normalizeEntityHealth({ ...member, lethalOverflow: member.lethalOverflow ?? 0 }) as RosterMember),
         };
@@ -512,13 +594,13 @@ export function App() {
           actionLabel: "Restore backup",
           action: () => { setSnapshot(restored); setConfirmation(null); showToast("Backup restored."); },
         });
-      } else {
+      } else if (importKind === "bestiary") {
         const pack = validateContentPack(value);
         if (pack.valid && pack.document) {
           commit((current) => ({ ...current, contentPacks: [...current.contentPacks.filter((item) => item.pack.id !== pack.document!.pack.id), pack.document!] }));
           showToast("Content pack installed.");
-        } else showToast("This JSON file is not a recognized encounter, backup, or content pack.");
-      }
+        } else showToast("That file does not contain a bestiary or creature content pack.");
+      } else showToast(`That file does not contain ${importKind === "encounter" ? "an encounter" : importKind === "roster" ? "a roster" : "a backup"}.`);
     } catch { showToast("Import failed: invalid JSON."); }
   };
 
@@ -534,6 +616,7 @@ export function App() {
       else if (event.key.toLowerCase() === "e" && encounter.mode === "active") updateEncounter(endRound);
       else if (event.key.toLowerCase() === "l") commit((current) => ({ ...current, settings: { ...current.settings, activePanel: current.settings.activePanel === "log" ? null : "log" } }));
       else if (event.key.toLowerCase() === "r") toggleRosterPanel();
+      else if (event.key.toLowerCase() === "b") toggleBestiaryPanel();
       else if (event.key.toLowerCase() === "m") setCombatEditing((current) => encounter.mode === "active" ? !current : current);
       else if (event.key === "?") setDialog("shortcuts");
     };
@@ -543,8 +626,9 @@ export function App() {
 
   if (!snapshot || !encounter) return <div className="loading-screen"><div className="loading-die">20</div><span>Opening encounter…</span></div>;
 
-  const panel = snapshot.settings.activePanel === "roster" ? null : snapshot.settings.activePanel;
+  const panel = snapshot.settings.activePanel === "roster" || snapshot.settings.activePanel === "bestiary" ? null : snapshot.settings.activePanel;
   const rosterOpen = snapshot.settings.rosterOpen ?? snapshot.settings.activePanel === "roster";
+  const bestiaryOpen = snapshot.settings.bestiaryOpen ?? snapshot.settings.activePanel === "bestiary";
   const rosterIds = new Set(encounter.entities.map((entity) => entity.rosterId).filter(Boolean) as string[]);
   const storedRosterIds = new Set(snapshot.roster.map((member) => member.rosterId));
   const asidePanelProps = {
@@ -558,6 +642,7 @@ export function App() {
     onUpdateNote: (id: string, text: string) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.map((note) => note.id === id ? { ...note, text } : note) })) : commit((current) => ({ ...current, sessionNotes: current.sessionNotes.map((note) => note.id === id ? { ...note, text } : note) })),
     onRemoveNote: (id: string, text: string) => setConfirmation({ title: "Delete this note?", message: `“${text}”`, actionLabel: "Delete Entry", className: "modal--note-delete", hideClose: true, action: () => { if (notesEntityId) mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.filter((note) => note.id !== id) })); else commit((current) => ({ ...current, sessionNotes: current.sessionNotes.filter((note) => note.id !== id) })); setConfirmation(null); } }),
     onUpdateStatBlock: requestStatBlockUpdate,
+    onSaveBestiary: (block: MonsterStatBlock, armorClass: number, maxHP: number) => selectedNotesEntity && saveEntityToBestiary({ ...selectedNotesEntity, statBlock: block, armorClass, maxHP }),
     statBlockLinkedCount: selectedLinkedEnemies.length,
     statBlockLinkCandidate: selectedStatBlockCandidate,
     onLinkStatBlock: linkSelectedStatBlock,
@@ -571,9 +656,10 @@ export function App() {
     onPackRemove: (packId: string) => setConfirmation({ title: "Uninstall content pack?", message: "The pack will be removed from this browser. Existing encounter data is not deleted.", actionLabel: "Uninstall pack", action: () => { commit((current) => ({ ...current, contentPacks: current.contentPacks.filter((pack) => pack.pack.id !== packId) })); setConfirmation(null); } }),
   };
   const rosterAside = rosterOpen && <AsidePanel panel="roster" onClose={toggleRosterPanel} {...asidePanelProps} />;
+  const bestiaryAside = bestiaryOpen && <aside className="aside-panel aside-panel--bestiary"><button className="aside-close" aria-label="Close bestiary" onClick={toggleBestiaryPanel}><img src="/icons/ui/log-close.svg" alt="" /></button><BestiaryPanel entries={bestiaryEntries} encounterRuleset={encounter.rulesetId} onAdd={addBestiaryCreature} onEdit={setBestiaryEditor} onDuplicate={duplicateBestiaryEntry} onRemove={removeBestiaryEntry} /></aside>;
   const utilityAside = panel && <AsidePanel panel={panel} onClose={() => commit((current) => ({ ...current, settings: { ...current.settings, activePanel: null } }))} {...asidePanelProps} />;
 
-  return <div className={`app-shell${panel || rosterOpen ? " has-aside" : ""}`}>
+  return <div className={`app-shell${panel || rosterOpen || bestiaryOpen ? " has-aside" : ""}`}>
     <Header
       encounter={encounter}
       saveStatus={saveStatus}
@@ -582,9 +668,9 @@ export function App() {
       onLoad={() => setDialog("load")}
       onSave={() => { void saveSnapshot(snapshot).then(() => showToast("Saved locally.")); }}
       onPanel={togglePanel}
-      onExport={() => exportEncounter(encounter)}
+      onExport={() => setDialog("export")}
       onExportAll={() => exportAll(snapshot)}
-      onImport={() => importInput.current?.click()}
+      onImport={() => setDialog("import")}
       onDelete={() => setDialog("delete")}
       onShortcuts={() => setDialog("shortcuts")}
       onEndCombat={() => setConfirmation({ title: "End active combat?", message: "The encounter returns to staging. The combat log and entity state are kept.", actionLabel: "Return to staging", action: () => { setCombatEditing(false); updateEncounter(returnToStaging); setConfirmation(null); } })}
@@ -592,8 +678,9 @@ export function App() {
       onClearEffects={() => setConfirmation({ title: "Clear every effect?", message: "All conditions, reactions, and temporary action effects will be removed from this encounter.", actionLabel: "Clear effects", action: () => { updateEncounter((current) => withLog({ ...current, entities: current.entities.map((entity) => ({ ...entity, effects: [], reactionUsed: false })) }, "system", "All effects cleared.")); setConfirmation(null); } })}
       onResetHP={() => setConfirmation({ title: "Reset all hit points?", message: "Every entity will return to maximum HP and lose temporary HP and death-save state.", actionLabel: "Reset HP", action: () => { updateEncounter((current) => withLog({ ...current, entities: current.entities.map((entity) => syncStabilizedEffect({ ...entity, currentHP: entity.maxHP, tempHP: 0, lethalOverflow: 0, isDead: entity.maxHP === 0, isDying: false, isUnconscious: false, deathSaveSuccesses: 0, deathSaveFailures: 0 })) }, "healing", "All HP reset to maximum.")); setConfirmation(null); } })}
     />
-    <main className={`workspace${rosterOpen ? " workspace--roster-aside" : ""}${panel === "library" ? " workspace--library-aside" : panel ? " workspace--utility-aside" : ""}`}>
+    <main className={`workspace${rosterOpen || bestiaryOpen ? " workspace--roster-aside" : ""}${panel === "library" ? " workspace--library-aside" : panel ? " workspace--utility-aside" : ""}`}>
       {rosterAside}
+      {bestiaryAside}
       <TurnOrder
         encounter={encounter}
         rosterIds={storedRosterIds}
@@ -614,6 +701,7 @@ export function App() {
         onRemove={(entity) => setConfirmation({ title: `Remove ${entity.name}?`, message: "This removes the entity from this encounter. A linked party-roster entry is kept.", actionLabel: "Remove entity", action: () => { updateEncounter((current) => removeEntity(current, entity.id)); if (editingEntityId === entity.id) { setEditingEntityId(null); setEditingEntityDirty(false); } setConfirmation(null); } })}
         onDuplicate={(entity) => updateEncounter((current) => ({ ...current, entities: [...current.entities, { ...structuredClone(entity), id: uid("entity"), name: nextDuplicateEntityName(entity.name, current.entities.map((item) => item.name)), isPersistent: false, rosterId: null }] }))}
         onToggleRoster={toggleEntityRoster}
+        onSaveToBestiary={saveEntityToBestiary}
         onDelay={() => updateEncounter(delayTurn)}
         onHold={(entity) => applyNamedEffect(entity, "readied-action")}
         onDodge={(entity) => applyNamedEffect(entity, "dodge-action")}
@@ -637,6 +725,7 @@ export function App() {
       encounter={encounter}
       combatEditing={combatEditing}
       onRoster={toggleRosterPanel}
+      onBestiary={toggleBestiaryPanel}
       onSort={() => updateEncounter(sortInitiative)}
       onRollAll={() => updateEncounter(rollAll)}
       onRollType={(type) => updateEncounter((current) => rollAll(current, type))}
@@ -649,6 +738,7 @@ export function App() {
 
     <input ref={importInput} hidden type="file" accept="application/json,.json" onChange={(event) => { void importDocument(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
     {editor && <EntityEditor entity={editor.entity} title={editor.rosterOnly ? (editor.entity ? "Edit Character" : "Add Character") : undefined} rosterOnly={editor.rosterOnly} availableCreatures={encounter.entities} onSave={saveEntity} onClose={() => setEditor(null)} />}
+    {bestiaryEditor && <BestiaryEditor entry={bestiaryEditor} onSave={saveBestiaryEntry} onClose={() => setBestiaryEditor(null)} />}
     {dialog === "new" && <Modal
       title="New Encounter"
       hideClose
@@ -679,7 +769,18 @@ export function App() {
     {dialog === "rename" && <Modal title="Rename Encounter" onClose={() => setDialog(null)} footer={<><Button tone="quiet" onClick={() => setDialog(null)}>Cancel</Button><Button tone="primary" onClick={() => { updateEncounter((current) => ({ ...current, name: newName.trim() || current.name })); setDialog(null); }}>Rename</Button></>}><label className="field field--full"><span>Encounter name</span><input autoFocus value={newName} onInput={(event) => setNewName(event.currentTarget.value)} /></label></Modal>}
     {dialog === "load" && <Modal title="Load Encounter" onClose={() => setDialog(null)}><div className="encounter-list">{snapshot.encounters.map((item) => <button key={item.id} className={item.id === encounter.id ? "is-current" : ""} onClick={() => { commit((current) => ({ ...current, settings: { ...current.settings, activeEncounterId: item.id } })); setDialog(null); }}><div><strong>{item.name}</strong><small>{RULESETS[item.rulesetId]?.shortName ?? "5e"} · {item.entities.length} entities</small></div><span>{item.mode === "active" ? `Round ${item.round}` : "Staging"}</span></button>)}</div></Modal>}
     {dialog === "delete" && <Modal title="Delete Encounter" onClose={() => setDialog(null)} footer={<><Button tone="quiet" onClick={() => setDialog(null)}>Cancel</Button><Button tone="danger" onClick={() => { const remaining = snapshot.encounters.filter((item) => item.id !== encounter.id); const next = remaining[0] ?? createEncounter(); setSnapshot({ ...snapshot, encounters: remaining.length ? remaining : [next], settings: { ...snapshot.settings, activeEncounterId: next.id } }); setDialog(null); }}>Delete encounter</Button></>}><p className="confirm-copy">Delete <strong>{encounter.name}</strong>? This removes its entities and combat log from this browser.</p></Modal>}
-    {dialog === "shortcuts" && <Modal title="Keyboard shortcuts" onClose={() => setDialog(null)}><dl className="shortcut-list"><div><dt>Space / →</dt><dd>Next turn</dd></div><div><dt>←</dt><dd>Previous turn</dd></div><div><dt>N</dt><dd>New entity</dd></div><div><dt>S</dt><dd>Sort initiative</dd></div><div><dt>E</dt><dd>End round</dd></div><div><dt>L</dt><dd>Combat log</dd></div><div><dt>R</dt><dd>Party roster</dd></div><div><dt>M</dt><dd>Edit entities during combat</dd></div><div><dt>?</dt><dd>Show shortcuts</dd></div><div><dt>Esc</dt><dd>Close dialog</dd></div></dl></Modal>}
+    {dialog === "shortcuts" && <Modal title="Keyboard shortcuts" onClose={() => setDialog(null)}><dl className="shortcut-list"><div><dt>Space / →</dt><dd>Next turn</dd></div><div><dt>←</dt><dd>Previous turn</dd></div><div><dt>N</dt><dd>New entity</dd></div><div><dt>S</dt><dd>Sort initiative</dd></div><div><dt>E</dt><dd>End round</dd></div><div><dt>L</dt><dd>Combat log</dd></div><div><dt>R</dt><dd>Party roster</dd></div><div><dt>B</dt><dd>Bestiary</dd></div><div><dt>M</dt><dd>Edit entities during combat</dd></div><div><dt>?</dt><dd>Show shortcuts</dd></div><div><dt>Esc</dt><dd>Close dialog</dd></div></dl></Modal>}
+    {dialog === "export" && <Modal title="Export data" onClose={() => setDialog(null)}><div className="transfer-choices">
+      <button onClick={() => { exportEncounter(encounter); setDialog(null); }}><img src="/icons/ui/combat.svg" alt="" /><span><strong>Encounter</strong><small>Current entities, turn state, and combat log</small></span></button>
+      <button onClick={() => { exportRoster(snapshot.roster); setDialog(null); }}><img src="/icons/ui/roster.svg" alt="" /><span><strong>Roster</strong><small>Reusable player characters, allies, and NPCs</small></span></button>
+      <button onClick={() => { exportBestiary([...snapshot.bestiary, ...snapshot.contentPacks.flatMap((pack) => pack.content.creatures)]); setDialog(null); }}><img src="/icons/ui/enemy.svg" alt="" /><span><strong>Bestiary</strong><small>All saved and installed creatures</small></span></button>
+    </div></Modal>}
+    {dialog === "import" && <Modal title="Import data" onClose={() => setDialog(null)}><div className="transfer-choices">
+      {([[
+        "encounter", "Encounter", "Current entities, turn state, and combat log", "/icons/ui/combat.svg"
+      ], ["roster", "Roster", "Reusable player characters, allies, and NPCs", "/icons/ui/roster.svg"], ["bestiary", "Bestiary", "Saved creatures or a creature content pack", "/icons/ui/enemy.svg"]] as const).map(([kind, title, description, icon]) => <button key={kind} onClick={() => { setImportKind(kind); setDialog(null); window.setTimeout(() => importInput.current?.click(), 0); }}><img src={icon} alt="" /><span><strong>{title}</strong><small>{description}</small></span></button>)}
+      <button className="transfer-choice--secondary" onClick={() => { setImportKind("backup"); setDialog(null); window.setTimeout(() => importInput.current?.click(), 0); }}><img src="/icons/ui/load.svg" alt="" /><span><strong>Full backup</strong><small>Replace local data from a complete backup</small></span></button>
+    </div></Modal>}
     {sharedStatBlockUpdate && <Modal
       title={sharedStatBlockUpdate.mode === "linked" ? "Update shared stat block?" : "Share this stat block?"}
       className="modal--shared-stat-block"

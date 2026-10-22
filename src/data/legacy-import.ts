@@ -95,6 +95,7 @@ export function importLegacyState(): AppSnapshot | null {
     return {
       encounters,
       roster,
+      bestiary: [],
       contentPacks: [],
       sessionNotes: Array.isArray(legacy.sessionNotes) ? legacy.sessionNotes.filter((note) => note && typeof note.text === "string").map((note) => ({ id: typeof note.id === "string" ? note.id : uid("note"), timestamp: number(note.timestamp, Date.now()), text: note.text as string })) : [],
       settings: { activeEncounterId: legacy.activeEncounterId ?? encounters[0].id, activePanel: "log", persistenceRequested: false },

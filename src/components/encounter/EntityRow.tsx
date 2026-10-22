@@ -30,6 +30,7 @@ interface EntityRowProps {
   onRemove: () => void;
   onDuplicate: () => void;
   onToggleRoster: () => void;
+  onSaveToBestiary: () => void;
   onDelay: () => void;
   onHold: () => void;
   onDodge: () => void;
@@ -262,6 +263,7 @@ export function EntityRow(props: EntityRowProps) {
                 <DropdownMenu.Item onSelect={props.onNotes}>{detailsLabel}</DropdownMenu.Item>
               </>}
               <DropdownMenu.Item onSelect={props.onDuplicate}>Duplicate</DropdownMenu.Item>
+              {(entity.type === "Enemy" || entity.type === "Ally" || entity.type === "Neutral") && <DropdownMenu.Item onSelect={props.onSaveToBestiary}>{entity.sourceRef ? "Update bestiary entry" : "Save to bestiary"}</DropdownMenu.Item>}
               {!props.staging && <>
                 <DropdownMenu.Label className="entity-menu__label">Actions</DropdownMenu.Label>
                 {!entity.isDead && <DropdownMenu.Item onSelect={props.onDodge}>Dodge</DropdownMenu.Item>}

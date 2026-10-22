@@ -1,4 +1,4 @@
-import type { AppSnapshot, Encounter } from "../domain/types";
+import type { AppSnapshot, CreatureTemplate, Encounter, RosterMember } from "../domain/types";
 
 function downloadJson(filename: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
@@ -11,6 +11,14 @@ function downloadJson(filename: string, value: unknown) {
 
 export function exportEncounter(encounter: Encounter) {
   downloadJson(`${encounter.name.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "encounter"}.json`, { schemaVersion: 2, type: "dmtools-encounter", encounter });
+}
+
+export function exportRoster(roster: RosterMember[]) {
+  downloadJson(`dmtools_roster_${new Date().toISOString().slice(0, 10)}.json`, { schemaVersion: 2, type: "dmtools-roster", roster });
+}
+
+export function exportBestiary(bestiary: CreatureTemplate[]) {
+  downloadJson(`dmtools_bestiary_${new Date().toISOString().slice(0, 10)}.json`, { schemaVersion: 2, type: "dmtools-bestiary", bestiary });
 }
 
 export function exportAll(snapshot: AppSnapshot) {

@@ -70,12 +70,13 @@ const cleanDetails = (details: DetailDraft[]) => details
   .map(({ label, value }) => ({ label: label.trim(), value: value.trim() }))
   .filter(({ label, value }) => label && value);
 
-function ImportEditor({ block, entity, onSave, onCancel, onRemove }: {
+function ImportEditor({ block, entity, onSave, onCancel, onRemove, onSaveBestiary }: {
   block?: MonsterStatBlock;
   entity: EncounterEntity;
-  onSave: (block: MonsterStatBlock, armorClass: number, maxHP: number) => void;
+  onSave: (block: MonsterStatBlock, armorClass: number, maxHP: number, saveBestiary: boolean) => void;
   onCancel?: () => void;
   onRemove?: () => void;
+  onSaveBestiary?: (block: MonsterStatBlock, armorClass: number, maxHP: number) => void;
 }) {
   const editableSections = sectionsForEntity(entity);
   const [source, setSource] = useState(() => block ? statBlockAsJson(block) : "");
@@ -92,6 +93,7 @@ function ImportEditor({ block, entity, onSave, onCancel, onRemove }: {
   const [openSections, setOpenSections] = useState<Record<EditableSectionKey, boolean>>(() => Object.fromEntries(EDITABLE_SECTIONS.map(({ key }) => [key, Boolean(draftsFromBlock(block)[key])])) as Record<EditableSectionKey, boolean>);
   const [importOpen, setImportOpen] = useState(false);
   const [structuredDirty, setStructuredDirty] = useState(false);
+  const [saveBestiary, setSaveBestiary] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setSource(block ? statBlockAsJson(block) : "");
@@ -131,7 +133,7 @@ function ImportEditor({ block, entity, onSave, onCancel, onRemove }: {
       const structuredDetails = cleanDetails(detailDrafts);
       const details = detailsDirty || structuredDetails.length ? structuredDetails : parsed.details;
       const nextSpeed = detailsDirty || speed.trim() ? speed.trim() || undefined : parsed.speed;
-      onSave({ ...parsed, name: parsed.name || entity.name, armorClass: String(nextArmorClass), hitPoints: hitPointsLabel(nextMaxHP, parsed.hitPoints), speed: nextSpeed, abilities, details, sections }, nextArmorClass, nextMaxHP);
+      onSave({ ...parsed, name: parsed.name || entity.name, armorClass: String(nextArmorClass), hitPoints: hitPointsLabel(nextMaxHP, parsed.hitPoints), speed: nextSpeed, abilities, details, sections }, nextArmorClass, nextMaxHP, saveBestiary);
       setError("");
     }
     catch (problem) { setError(problem instanceof Error ? problem.message : "The stat block could not be read."); }
@@ -203,6 +205,7 @@ function ImportEditor({ block, entity, onSave, onCancel, onRemove }: {
     </div>
     <div className="stat-block-importer__actions">
       {onRemove && <button type="button" className="stat-block-remove" onClick={onRemove}>Remove stat block</button>}
+      {onSaveBestiary && <label className="stat-block-save-bestiary"><input type="checkbox" checked={saveBestiary} onChange={(event) => setSaveBestiary(event.currentTarget.checked)} /><span>{entity.sourceRef ? "Update bestiary entry" : "Save to bestiary"}</span></label>}
       <span />
       {onCancel && <Button compact tone="quiet" onClick={onCancel}>Cancel</Button>}
       <Button compact tone="primary" onClick={save}>{block ? "Update" : "Save stat block"}</Button>
@@ -219,9 +222,10 @@ interface StatBlockPanelProps {
   linkCandidate?: EncounterEntity;
   onLink?: () => void;
   onUnlink?: () => void;
+  onSaveBestiary?: (block: MonsterStatBlock, armorClass: number, maxHP: number) => void;
 }
 
-export function StatBlockPanel({ entity, onChange, tabs, panelId, linkedCount = 1, linkCandidate, onLink, onUnlink }: StatBlockPanelProps) {
+export function StatBlockPanel({ entity, onChange, tabs, panelId, linkedCount = 1, linkCandidate, onLink, onUnlink, onSaveBestiary }: StatBlockPanelProps) {
   const [editing, setEditing] = useState(!entity.statBlock);
   useEffect(() => { setEditing(!entity.statBlock); }, [entity.id, entity.statBlock]);
   const block = entity.statBlock;
@@ -235,9 +239,10 @@ export function StatBlockPanel({ entity, onChange, tabs, panelId, linkedCount = 
       <ImportEditor
         block={block}
         entity={entity}
-        onSave={(next, armorClass, maxHP) => { if (onChange(next, armorClass, maxHP) !== false) setEditing(false); }}
+        onSave={(next, armorClass, maxHP, saveBestiary) => { if (onChange(next, armorClass, maxHP) !== false) { if (saveBestiary) onSaveBestiary?.(next, armorClass, maxHP); setEditing(false); } }}
         onCancel={block ? () => setEditing(false) : undefined}
         onRemove={block ? () => { if (onChange(undefined) !== false) setEditing(true); } : undefined}
+        onSaveBestiary={onSaveBestiary}
       />
     </div>
   </div>;

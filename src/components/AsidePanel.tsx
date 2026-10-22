@@ -90,13 +90,13 @@ function EntityDetailTabs({ entity, active, onChange }: { entity: EncounterEntit
   return <div className="entity-detail-tabs" role="tablist" aria-label={`${entity.name} details`}>{tab("notes", "Notes")}{tab("stat-block", "Stat block")}</div>;
 }
 
-function EntityDetailPanel({ entity, notes, onAdd, onUpdate, onRemove, onUpdateStatBlock, statBlockLinkedCount, statBlockLinkCandidate, onLinkStatBlock, onUnlinkStatBlock }: { entity: EncounterEntity; notes: SessionNote[]; onAdd: (text: string) => void; onUpdate: (id: string, text: string) => void; onRemove: (id: string, text: string) => void; onUpdateStatBlock: (block: MonsterStatBlock | undefined, armorClass?: number, maxHP?: number) => boolean | void; statBlockLinkedCount: number; statBlockLinkCandidate?: EncounterEntity; onLinkStatBlock: () => void; onUnlinkStatBlock: () => void }) {
+function EntityDetailPanel({ entity, notes, onAdd, onUpdate, onRemove, onUpdateStatBlock, statBlockLinkedCount, statBlockLinkCandidate, onLinkStatBlock, onUnlinkStatBlock, onSaveBestiary }: { entity: EncounterEntity; notes: SessionNote[]; onAdd: (text: string) => void; onUpdate: (id: string, text: string) => void; onRemove: (id: string, text: string) => void; onUpdateStatBlock: (block: MonsterStatBlock | undefined, armorClass?: number, maxHP?: number) => boolean | void; statBlockLinkedCount: number; statBlockLinkCandidate?: EncounterEntity; onLinkStatBlock: () => void; onUnlinkStatBlock: () => void; onSaveBestiary: (block: MonsterStatBlock, armorClass: number, maxHP: number) => void }) {
   const [activeTab, setActiveTab] = useState<EntityDetailTab>("notes");
   useEffect(() => { setActiveTab("notes"); }, [entity.id]);
   const tabs = <EntityDetailTabs entity={entity} active={activeTab} onChange={setActiveTab} />;
   return activeTab === "notes"
     ? <NotesPanel notes={notes} entity={entity} onAdd={onAdd} onUpdate={onUpdate} onRemove={onRemove} tabs={tabs} panelId={`${entity.id}-notes-panel`} />
-    : <StatBlockPanel entity={entity} onChange={onUpdateStatBlock} tabs={tabs} panelId={`${entity.id}-stat-block-panel`} linkedCount={statBlockLinkedCount} linkCandidate={statBlockLinkCandidate} onLink={onLinkStatBlock} onUnlink={onUnlinkStatBlock} />;
+    : <StatBlockPanel entity={entity} onChange={onUpdateStatBlock} tabs={tabs} panelId={`${entity.id}-stat-block-panel`} linkedCount={statBlockLinkedCount} linkCandidate={statBlockLinkCandidate} onLink={onLinkStatBlock} onUnlink={onUnlinkStatBlock} onSaveBestiary={onSaveBestiary} />;
 }
 
 const referenceOptions: Array<{ key: QuickReferenceKey; label: string }> = [
@@ -216,7 +216,7 @@ function RosterPanel({ roster, encounterEntityIds, onToggle, onEdit, onArchive, 
   </div>;
 }
 
-export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, roster, encounterEntityIds, packs, onAddNote, onUpdateNote, onRemoveNote, onUpdateStatBlock, statBlockLinkedCount, statBlockLinkCandidate, onLinkStatBlock, onUnlinkStatBlock, onRosterToggle, onRosterEdit, onRosterArchive, onRosterRemove, onRosterCreate, onPackInstall, onPackRemove }: {
+export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, roster, encounterEntityIds, packs, onAddNote, onUpdateNote, onRemoveNote, onUpdateStatBlock, onSaveBestiary, statBlockLinkedCount, statBlockLinkCandidate, onLinkStatBlock, onUnlinkStatBlock, onRosterToggle, onRosterEdit, onRosterArchive, onRosterRemove, onRosterCreate, onPackInstall, onPackRemove }: {
   panel: AppPanel;
   onClose: () => void;
   log: CombatLogEntry[];
@@ -229,6 +229,7 @@ export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, 
   onUpdateNote: (id: string, text: string) => void;
   onRemoveNote: (id: string, text: string) => void;
   onUpdateStatBlock: (block: MonsterStatBlock | undefined, armorClass?: number, maxHP?: number) => boolean | void;
+  onSaveBestiary: (block: MonsterStatBlock, armorClass: number, maxHP: number) => void;
   statBlockLinkedCount: number;
   statBlockLinkCandidate?: EncounterEntity;
   onLinkStatBlock: () => void;
@@ -243,5 +244,5 @@ export function AsidePanel({ panel, onClose, log, sessionNotes, selectedEntity, 
 }) {
   const isReference = panel === "reference" || panel === "conditions" || panel.startsWith("reference-");
   const entitySupportsTabbedDetails = selectedEntity?.type === "Ally" || selectedEntity?.type === "Neutral";
-  return <aside className={`aside-panel aside-panel--${isReference ? "reference" : panel}`}><button className="aside-close" aria-label="Close panel" onClick={onClose}><img src={isReference ? "/icons/reference/close.svg" : "/icons/ui/log-close.svg"} alt="" /></button>{panel === "log" && <LogPanel entries={log} />}{panel === "notes" && (selectedEntity?.type === "Enemy" ? <StatBlockPanel entity={selectedEntity} onChange={onUpdateStatBlock} linkedCount={statBlockLinkedCount} linkCandidate={statBlockLinkCandidate} onLink={onLinkStatBlock} onUnlink={onUnlinkStatBlock} /> : entitySupportsTabbedDetails && selectedEntity ? <EntityDetailPanel entity={selectedEntity} notes={sessionNotes} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} onUpdateStatBlock={onUpdateStatBlock} statBlockLinkedCount={statBlockLinkedCount} statBlockLinkCandidate={statBlockLinkCandidate} onLinkStatBlock={onLinkStatBlock} onUnlinkStatBlock={onUnlinkStatBlock} /> : <NotesPanel notes={sessionNotes} entity={selectedEntity} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} />)}{panel === "roster" && <RosterPanel roster={roster} encounterEntityIds={encounterEntityIds} onToggle={onRosterToggle} onEdit={onRosterEdit} onArchive={onRosterArchive} onRemove={onRosterRemove} onCreate={onRosterCreate} />}{panel === "library" && <ContentLibrary packs={packs} onInstall={onPackInstall} onRemove={onPackRemove} />}{isReference && <ReferencePanel />}</aside>;
+  return <aside className={`aside-panel aside-panel--${isReference ? "reference" : panel}`}><button className="aside-close" aria-label="Close panel" onClick={onClose}><img src={isReference ? "/icons/reference/close.svg" : "/icons/ui/log-close.svg"} alt="" /></button>{panel === "log" && <LogPanel entries={log} />}{panel === "notes" && (selectedEntity?.type === "Enemy" ? <StatBlockPanel entity={selectedEntity} onChange={onUpdateStatBlock} linkedCount={statBlockLinkedCount} linkCandidate={statBlockLinkCandidate} onLink={onLinkStatBlock} onUnlink={onUnlinkStatBlock} onSaveBestiary={onSaveBestiary} /> : entitySupportsTabbedDetails && selectedEntity ? <EntityDetailPanel entity={selectedEntity} notes={sessionNotes} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} onUpdateStatBlock={onUpdateStatBlock} statBlockLinkedCount={statBlockLinkedCount} statBlockLinkCandidate={statBlockLinkCandidate} onLinkStatBlock={onLinkStatBlock} onUnlinkStatBlock={onUnlinkStatBlock} onSaveBestiary={onSaveBestiary} /> : <NotesPanel notes={sessionNotes} entity={selectedEntity} onAdd={onAddNote} onUpdate={onUpdateNote} onRemove={onRemoveNote} />)}{panel === "roster" && <RosterPanel roster={roster} encounterEntityIds={encounterEntityIds} onToggle={onRosterToggle} onEdit={onRosterEdit} onArchive={onRosterArchive} onRemove={onRosterRemove} onCreate={onRosterCreate} />}{panel === "library" && <ContentLibrary packs={packs} onInstall={onPackInstall} onRemove={onPackRemove} />}{isReference && <ReferencePanel />}</aside>;
 }

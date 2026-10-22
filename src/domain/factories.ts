@@ -121,6 +121,7 @@ export function createSeedSnapshot(): AppSnapshot {
   return {
     encounters: [encounter],
     roster,
+    bestiary: [],
     contentPacks: [],
     sessionNotes: [],
     settings: { activeEncounterId: encounter.id, activePanel: "log", persistenceRequested: false },
