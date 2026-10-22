@@ -1,0 +1,80 @@
+{
+  "name": "Druid",
+  "identity": "Medium Humanoid (Any Race), Any Alignment",
+  "armorClass": "11 (16 with Barkskin)",
+  "initiative": "+1 (11)",
+  "hitPoints": "27 (5d8 + 5)",
+  "speed": "30 ft.",
+  "abilities": {
+    "str": {
+      "score": 10,
+      "modifier": "+0"
+    },
+    "dex": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "con": {
+      "score": 13,
+      "modifier": "+1"
+    },
+    "int": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "wis": {
+      "score": 15,
+      "modifier": "+2"
+    },
+    "cha": {
+      "score": 11,
+      "modifier": "+0"
+    }
+  },
+  "details": [
+    {
+      "label": "Skills",
+      "value": "Medicine +4, Nature +3, Perception +4"
+    },
+    {
+      "label": "Senses",
+      "value": "Passive Perception 14"
+    },
+    {
+      "label": "Languages",
+      "value": "Druidic plus any two languages"
+    },
+    {
+      "label": "Challenge",
+      "value": "2 (450 XP; PB +2)"
+    },
+    {
+      "label": "Habitat",
+      "value": "Arctic, Coastal, Desert, Forest, Grassland, Hill, Mountain, Swamp, Underdark"
+    },
+    {
+      "label": "Source",
+      "value": "Monster Manual (2014), page 346; SRD 5.1"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Traits",
+      "entries": [
+        {
+          "name": "Spellcasting",
+          "description": "The druid is a 4th-level Wisdom spellcaster (spell save DC 12, +4 to hit with spell attacks). Cantrips: Druidcraft, Produce Flame, Shillelagh. 1st level (4 slots): Entangle, Longstrider, Speak with Animals, Thunderwave. 2nd level (3 slots): Animal Messenger, Barkskin."
+        }
+      ]
+    },
+    {
+      "title": "Actions",
+      "entries": [
+        {
+          "name": "Quarterstaff",
+          "description": "Melee Weapon Attack: +2 to hit, or +4 with Shillelagh; reach 5 ft., one target. Hit: 3 (1d6) Bludgeoning damage, 4 (1d8) when wielded with two hands, or 6 (1d8 + 2) while using Shillelagh."
+        }
+      ]
+    }
+  ]
+}

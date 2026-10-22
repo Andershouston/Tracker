@@ -18,17 +18,29 @@ import { exportAll, exportEncounter, readJsonFile } from "../data/backup";
 import { loadSnapshot, requestPersistentStorage, saveSnapshot } from "../data/database";
 import { importLegacyState } from "../data/legacy-import";
 import { activateEffect } from "../domain/effects";
+import { nextDuplicateEntityName } from "../domain/entity-names";
 import { createEncounter, createEntity, createRosterMemberFromEntity, createSeedSnapshot, instantiateRosterMember, uid } from "../domain/factories";
 import { configureEntityHP, damageEntity, healEntity, normalizeEntityHealth, recordDeathSave, reviveEntity, setEntityHP, setTempHP, stabilizeEntity } from "../domain/hit-points";
 import { resetInitiative, rollAll, setInitiative, sortInitiative } from "../domain/initiative";
 import { withLog } from "../domain/logging";
+import { syncLinkedRosterEntity } from "../domain/roster";
+import { canonicalEntityName, linkedStatBlockEntities, matchingEnemyEntities, nextAvailableEntityName, suggestedIndependentName } from "../domain/stat-block-links";
 import { beginCombat, delayTurn, endRound, nextTurn, previousTurn, removeEntity, returnToStaging } from "../domain/turn-flow";
-import type { ActiveEffect, AppPanel, AppSnapshot, ContentPackDocument, EffectDefinition, Encounter, EncounterEntity, RosterMember, RulesetId } from "../domain/types";
+import type { ActiveEffect, AppPanel, AppSnapshot, ContentPackDocument, EffectDefinition, Encounter, EncounterEntity, MonsterStatBlock, RosterMember, RulesetId } from "../domain/types";
 import { RULESETS } from "../domain/rulesets";
 
 type Dialog = "new" | "load" | "rename" | "delete" | "shortcuts" | null;
 type SaveStatus = "saved" | "saving" | "error";
 type Confirmation = { title: string; message: string; actionLabel: string; action: () => void; className?: string; hideClose?: boolean };
+type SharedStatBlockUpdate = {
+  entityId: string;
+  replacement?: EncounterEntity;
+  statBlock: MonsterStatBlock | undefined;
+  armorClass?: number;
+  maxHP?: number;
+  entityIds: string[];
+  mode: "create" | "linked";
+};
 
 const STABILIZED_EFFECT = BUILTIN_EFFECTS.find((effect) => effect.id === "stabilized");
 
@@ -58,6 +70,8 @@ export function App() {
   const [newRuleset, setNewRuleset] = useState<RulesetId>("dnd5e-2014-srd-5.1");
   const [newRosterIds, setNewRosterIds] = useState<Set<string>>(new Set());
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [sharedStatBlockUpdate, setSharedStatBlockUpdate] = useState<SharedStatBlockUpdate | null>(null);
+  const [independentName, setIndependentName] = useState("");
   const importInput = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
@@ -105,11 +119,16 @@ export function App() {
 
   useEffect(() => {
     const activePanel = snapshot?.settings.activePanel;
-    if (activePanel) setLastPanel(activePanel);
+    if (activePanel && activePanel !== "roster" && activePanel !== "library") setLastPanel(activePanel);
   }, [snapshot?.settings.activePanel]);
 
   const encounter = useMemo(() => snapshot?.encounters.find((item) => item.id === snapshot.settings.activeEncounterId) ?? snapshot?.encounters[0] ?? null, [snapshot]);
   const selectedNotesEntity = encounter?.entities.find((entity) => entity.id === notesEntityId) ?? null;
+  const selectedMatchingEnemies = selectedNotesEntity && encounter ? matchingEnemyEntities(selectedNotesEntity, encounter.entities) : [];
+  const selectedLinkedEnemies = selectedNotesEntity && encounter ? linkedStatBlockEntities(selectedNotesEntity, encounter.entities) : [];
+  const selectedStatBlockCandidate = selectedNotesEntity && selectedLinkedEnemies.length <= 1
+    ? selectedMatchingEnemies.find((candidate) => candidate.id !== selectedNotesEntity.id && candidate.statBlock)
+    : undefined;
   const effects = useMemo(() => encounter && snapshot ? availableEffects(snapshot.contentPacks, encounter.rulesetId) : [], [encounter?.rulesetId, snapshot?.contentPacks]);
 
   const commit = useCallback((updater: (current: AppSnapshot) => AppSnapshot) => setSnapshot((current) => current ? updater(current) : current), []);
@@ -120,15 +139,38 @@ export function App() {
 
   const showToast = (message: string) => setToast(message);
 
+  const toggleRosterPanel = () => {
+    setNotesEntityId(null);
+    commit((current) => {
+      const isOpen = current.settings.rosterOpen ?? current.settings.activePanel === "roster";
+      return {
+        ...current,
+        settings: {
+          ...current.settings,
+          rosterOpen: !isOpen,
+          activePanel: current.settings.activePanel === "roster" ? null : current.settings.activePanel,
+        },
+      };
+    });
+  };
+
   const togglePanel = (next: AppPanel | null) => {
+    if (next === "roster") {
+      toggleRosterPanel();
+      return;
+    }
     setNotesEntityId(null);
     commit((current) => ({ ...current, settings: { ...current.settings, activePanel: next === null ? null : current.settings.activePanel === next ? null : next } }));
   };
 
-  const saveEntity = (entity: EncounterEntity) => {
+  const saveEntity = (entity: EncounterEntity, statBlockSourceId?: string) => {
     if (editor?.rosterOnly) {
       const member = createRosterMemberFromEntity(entity);
-      commit((current) => ({ ...current, roster: [...current.roster.filter((item) => item.rosterId !== member.rosterId), member] }));
+      commit((current) => {
+        const existing = current.roster.find((item) => item.rosterId === member.rosterId);
+        const next = { ...current, roster: [...current.roster.filter((item) => item.rosterId !== member.rosterId), member] };
+        return existing ? syncLinkedRosterEntity(next, member) : next;
+      });
     } else {
       const exists = encounter?.entities.some((item) => item.id === entity.id) ?? false;
       let linkedEntity = entity;
@@ -138,7 +180,24 @@ export function App() {
         commit((current) => ({ ...current, roster: [...current.roster.filter((item) => item.rosterId !== member.rosterId), member] }));
       }
       updateEncounter((current) => {
-        return withLog({ ...current, entities: exists ? current.entities.map((item) => item.id === entity.id ? linkedEntity : item) : [...current.entities, linkedEntity] }, "system", `${entity.name} ${exists ? "updated" : "added"}.`);
+        if (exists) return withLog({ ...current, entities: current.entities.map((item) => item.id === entity.id ? linkedEntity : item) }, "system", `${entity.name} updated.`);
+        const name = nextAvailableEntityName(linkedEntity.name, current.entities.map((item) => item.name));
+        linkedEntity = { ...linkedEntity, name };
+        const source = (statBlockSourceId ? current.entities.find((candidate) => candidate.id === statBlockSourceId) : undefined)
+          ?? matchingEnemyEntities(linkedEntity, current.entities).find((candidate) => candidate.statBlock && !candidate.statBlockUnlinked);
+        let entities = current.entities;
+        if (source?.statBlock) {
+          const statBlockLinkId = source.statBlockLinkId ?? uid("stat-block");
+          linkedEntity = configureEntityHP({
+            ...linkedEntity,
+            armorClass: source.armorClass,
+            statBlock: structuredClone(source.statBlock),
+            statBlockLinkId,
+            statBlockUnlinked: false,
+          }, Math.min(linkedEntity.currentHP, source.maxHP), source.maxHP);
+          entities = entities.map((candidate) => candidate.id === source.id ? { ...candidate, statBlockLinkId, statBlockUnlinked: false } : candidate);
+        }
+        return withLog({ ...current, entities: [...entities, linkedEntity] }, "system", `${linkedEntity.name} added.`);
       });
     }
     setEditor(null);
@@ -173,7 +232,25 @@ export function App() {
   };
 
   const saveEditedEntity = (entity: EncounterEntity) => {
-    updateEncounter((current) => withLog({ ...current, entities: current.entities.map((item) => item.id === entity.id ? entity : item) }, "system", `${entity.name} updated.`));
+    const previousEntity = encounter?.entities.find((candidate) => candidate.id === entity.id);
+    const linked = previousEntity && encounter ? linkedStatBlockEntities(previousEntity, encounter.entities) : [];
+    if (previousEntity && linked.length > 1 && (previousEntity.armorClass !== entity.armorClass || previousEntity.maxHP !== entity.maxHP)) {
+      setIndependentName(suggestedIndependentName(previousEntity, encounter!.entities));
+      setSharedStatBlockUpdate({ entityId: entity.id, replacement: entity, statBlock: entity.statBlock, armorClass: entity.armorClass, maxHP: entity.maxHP, entityIds: linked.map((candidate) => candidate.id), mode: "linked" });
+      return;
+    }
+    if (encounter) {
+      commit((current) => {
+        const previous = current.encounters.find((item) => item.id === encounter.id)?.entities.find((candidate) => candidate.id === entity.id);
+        const next = {
+          ...current,
+          encounters: current.encounters.map((item) => item.id === encounter.id
+            ? withLog({ ...item, entities: item.entities.map((candidate) => candidate.id === entity.id ? entity : candidate) }, "system", `${entity.name} updated.`)
+            : item),
+        };
+        return previous && entity.rosterId ? syncLinkedRosterEntity(next, entity) : next;
+      });
+    }
     setEditingEntityId(null);
     setEditingEntityDirty(false);
     window.setTimeout(() => document.getElementById(`entity-options-${entity.id}`)?.focus(), 0);
@@ -186,10 +263,28 @@ export function App() {
     if (entityId) window.setTimeout(() => document.getElementById(`entity-options-${entityId}`)?.focus(), 0);
   };
 
-  const mutateEntity = (entityId: string, updater: (entity: EncounterEntity) => EncounterEntity, logMessage?: string) => updateEncounter((current) => {
-    const next = { ...current, entities: current.entities.map((entity) => entity.id === entityId ? updater(entity) : entity) };
-    return logMessage ? withLog(next, "system", logMessage) : next;
-  });
+  const mutateEntity = (entityId: string, updater: (entity: EncounterEntity) => EncounterEntity, logMessage?: string) => {
+    if (!encounter) return;
+    commit((current) => {
+      let updatedEntity: EncounterEntity | undefined;
+      const next = {
+        ...current,
+        encounters: current.encounters.map((item) => {
+          if (item.id !== encounter.id) return item;
+          const changed = {
+            ...item,
+            entities: item.entities.map((entity) => {
+              if (entity.id !== entityId) return entity;
+              updatedEntity = updater(entity);
+              return updatedEntity;
+            }),
+          };
+          return logMessage ? withLog(changed, "system", logMessage) : changed;
+        }),
+      };
+      return updatedEntity ? syncLinkedRosterEntity(next, updatedEntity) : next;
+    });
+  };
 
   const healthAction = (entity: EncounterEntity, action: "damage" | "heal" | "temp" | "set", amount: number) => {
     const result = action === "damage" ? damageEntity(entity, amount) : action === "heal" ? healEntity(entity, amount) : action === "temp" ? setTempHP(entity, amount) : setEntityHP(entity, amount);
@@ -200,6 +295,136 @@ export function App() {
       if (result.secondaryMessage) next = withLog(next, nextEntity.isDead ? "death" : nextEntity.isDying ? "death" : "healing", result.secondaryMessage);
       return next;
     });
+  };
+
+  const configureHealth = (entity: EncounterEntity, currentHP?: number, maxHP?: number) => {
+    if (!encounter) return;
+    const linked = maxHP !== undefined ? linkedStatBlockEntities(entity, encounter.entities) : [entity];
+    if (maxHP !== undefined && linked.length > 1) {
+      setIndependentName(suggestedIndependentName(entity, encounter.entities));
+      setSharedStatBlockUpdate({ entityId: entity.id, statBlock: entity.statBlock, armorClass: entity.armorClass, maxHP, entityIds: linked.map((candidate) => candidate.id), mode: "linked" });
+      return;
+    }
+    commit((current) => {
+      let updatedEntity: EncounterEntity | undefined;
+      const next = {
+        ...current,
+        encounters: current.encounters.map((item) => item.id === encounter.id
+          ? { ...item, entities: item.entities.map((candidate) => {
+            if (candidate.id !== entity.id) return candidate;
+            updatedEntity = syncStabilizedEffect(configureEntityHP(candidate, currentHP, maxHP));
+            return updatedEntity;
+          }) }
+          : item),
+      };
+      return maxHP !== undefined && updatedEntity ? syncLinkedRosterEntity(next, updatedEntity) : next;
+    });
+  };
+
+  const quickUpdateEntity = (entity: EncounterEntity, changes: Partial<Pick<EncounterEntity, "name" | "armorClass">>) => {
+    if (!encounter) return;
+    if (changes.armorClass !== undefined) {
+      const linked = linkedStatBlockEntities(entity, encounter.entities);
+      if (linked.length > 1) {
+        setIndependentName(suggestedIndependentName(entity, encounter.entities));
+        setSharedStatBlockUpdate({ entityId: entity.id, statBlock: entity.statBlock, armorClass: changes.armorClass, maxHP: entity.maxHP, entityIds: linked.map((candidate) => candidate.id), mode: "linked" });
+        return;
+      }
+    }
+    mutateEntity(entity.id, (current) => {
+      const requestedName = changes.name?.trim();
+      if (!requestedName) return { ...current, ...changes };
+      const name = nextAvailableEntityName(requestedName, encounter.entities.filter((candidate) => candidate.id !== entity.id).map((candidate) => candidate.name));
+      const changedFamily = canonicalEntityName(name).toLocaleLowerCase() !== canonicalEntityName(current.name).toLocaleLowerCase();
+      return { ...current, ...changes, name, ...(changedFamily ? { statBlockLinkId: null, statBlockUnlinked: true } : {}) };
+    });
+  };
+
+  const applyStatBlockUpdate = (update: SharedStatBlockUpdate, share: boolean, renamedEntity?: string) => {
+    if (!encounter) return;
+    const targetIds = new Set(share ? update.entityIds : [update.entityId]);
+    commit((current) => {
+      const currentEncounter = current.encounters.find((item) => item.id === encounter.id);
+      const source = currentEncounter?.entities.find((entity) => entity.id === update.entityId);
+      if (!source) return current;
+      const statBlockLinkId = share ? (source.statBlockLinkId ?? uid("stat-block")) : null;
+      const updatedEntities: EncounterEntity[] = [];
+      const next = {
+        ...current,
+        encounters: current.encounters.map((item) => item.id !== encounter.id ? item : {
+          ...item,
+          entities: item.entities.map((entity) => {
+            if (!targetIds.has(entity.id)) return entity;
+            const baseEntity = entity.id === source.id && update.replacement ? update.replacement : entity;
+            const updated = syncStabilizedEffect(configureEntityHP({
+              ...baseEntity,
+              name: entity.id === source.id && renamedEntity ? renamedEntity : entity.name,
+              armorClass: update.armorClass ?? entity.armorClass,
+              statBlock: update.statBlock ? structuredClone(update.statBlock) : undefined,
+              statBlockLinkId,
+              statBlockUnlinked: !share,
+            }, undefined, update.maxHP));
+            updatedEntities.push(updated);
+            return updated;
+          }),
+        }),
+      };
+      return updatedEntities.reduce((result, entity) => syncLinkedRosterEntity(result, entity), next);
+    });
+    setSharedStatBlockUpdate(null);
+    setIndependentName("");
+    setEditingEntityId(null);
+    setEditingEntityDirty(false);
+  };
+
+  const requestStatBlockUpdate = (statBlock: MonsterStatBlock | undefined, armorClass?: number, maxHP?: number) => {
+    if (!selectedNotesEntity || !encounter) return false;
+    const linked = linkedStatBlockEntities(selectedNotesEntity, encounter.entities);
+    if (linked.length > 1) {
+      setIndependentName(suggestedIndependentName(selectedNotesEntity, encounter.entities));
+      setSharedStatBlockUpdate({ entityId: selectedNotesEntity.id, statBlock, armorClass, maxHP, entityIds: linked.map((entity) => entity.id), mode: "linked" });
+      return false;
+    }
+    const emptyMatches = matchingEnemyEntities(selectedNotesEntity, encounter.entities).filter((entity) => entity.id !== selectedNotesEntity.id && !entity.statBlock && !entity.statBlockUnlinked);
+    if (selectedNotesEntity.type === "Enemy" && statBlock && !selectedNotesEntity.statBlockUnlinked && emptyMatches.length) {
+      setSharedStatBlockUpdate({ entityId: selectedNotesEntity.id, statBlock, armorClass, maxHP, entityIds: [selectedNotesEntity.id, ...emptyMatches.map((entity) => entity.id)], mode: "create" });
+      return false;
+    }
+    applyStatBlockUpdate({ entityId: selectedNotesEntity.id, statBlock, armorClass, maxHP, entityIds: [selectedNotesEntity.id], mode: "create" }, false);
+    return true;
+  };
+
+  const linkSelectedStatBlock = () => {
+    if (!selectedNotesEntity || !selectedStatBlockCandidate?.statBlock || !encounter) return;
+    const statBlockLinkId = selectedStatBlockCandidate.statBlockLinkId ?? uid("stat-block");
+    const sourceLinkedIds = new Set(linkedStatBlockEntities(selectedStatBlockCandidate, encounter.entities).map((entity) => entity.id));
+    sourceLinkedIds.add(selectedStatBlockCandidate.id);
+    sourceLinkedIds.add(selectedNotesEntity.id);
+    commit((current) => {
+      let updatedEntity: EncounterEntity | undefined;
+      const next = {
+        ...current,
+        encounters: current.encounters.map((item) => item.id !== encounter.id ? item : {
+          ...item,
+          entities: item.entities.map((entity) => {
+            if (entity.id === selectedNotesEntity.id) {
+              updatedEntity = configureEntityHP({ ...entity, armorClass: selectedStatBlockCandidate.armorClass, statBlock: structuredClone(selectedStatBlockCandidate.statBlock!), statBlockLinkId, statBlockUnlinked: false }, undefined, selectedStatBlockCandidate.maxHP);
+              return updatedEntity;
+            }
+            return sourceLinkedIds.has(entity.id) ? { ...entity, statBlockLinkId, statBlockUnlinked: false } : entity;
+          }),
+        }),
+      };
+      return updatedEntity ? syncLinkedRosterEntity(next, updatedEntity) : next;
+    });
+    showToast(`${selectedNotesEntity.name} now shares ${canonicalEntityName(selectedStatBlockCandidate.name)}’s stat block.`);
+  };
+
+  const unlinkSelectedStatBlock = () => {
+    if (!selectedNotesEntity || !encounter) return;
+    const name = suggestedIndependentName(selectedNotesEntity, encounter.entities);
+    mutateEntity(selectedNotesEntity.id, (entity) => ({ ...entity, name, statBlockLinkId: null, statBlockUnlinked: true }));
+    showToast(`${name} now has an independent stat block.`);
   };
 
   const resolveDeathSave = (entity: EncounterEntity, kind: "success" | "failure") => {
@@ -223,21 +448,12 @@ export function App() {
     setNewRosterIds(new Set());
   };
 
-  const uniqueEntityName = (name: string) => {
-    const names = new Set((encounter?.entities ?? []).map((entity) => entity.name.toLocaleLowerCase()));
-    if (!names.has(name.toLocaleLowerCase())) return name;
-    let index = 2;
-    while (names.has(`${name} (${index})`.toLocaleLowerCase())) index += 1;
-    return `${name} (${index})`;
-  };
-
   const createDraftEntity = (type: EncounterEntity["type"]) => createEntity({ name: "", type, maxHP: 1, currentHP: 1, armorClass: 10 });
 
-  const persistDraft = (entity: EncounterEntity) => {
-    const next = { ...entity, name: uniqueEntityName(entity.name) };
-    setLastDraftType(next.type);
-    saveEntity(next);
-    return next.type;
+  const persistDraft = (entity: EncounterEntity, statBlockSourceId?: string) => {
+    setLastDraftType(entity.type);
+    saveEntity(entity, statBlockSourceId);
+    return entity.type;
   };
 
   const startAddingEntity = () => {
@@ -248,8 +464,8 @@ export function App() {
     setDraftEntity(createDraftEntity(nextType));
   };
 
-  const completeDraft = (entity: EncounterEntity) => {
-    persistDraft(entity);
+  const completeDraft = (entity: EncounterEntity, statBlockSourceId?: string) => {
+    persistDraft(entity, statBlockSourceId);
     setDraftEntity(null);
   };
 
@@ -317,7 +533,7 @@ export function App() {
       else if (event.key.toLowerCase() === "s" && encounter.mode === "staging") updateEncounter(sortInitiative);
       else if (event.key.toLowerCase() === "e" && encounter.mode === "active") updateEncounter(endRound);
       else if (event.key.toLowerCase() === "l") commit((current) => ({ ...current, settings: { ...current.settings, activePanel: current.settings.activePanel === "log" ? null : "log" } }));
-      else if (event.key.toLowerCase() === "r") commit((current) => ({ ...current, settings: { ...current.settings, activePanel: current.settings.activePanel === "roster" ? null : "roster" } }));
+      else if (event.key.toLowerCase() === "r") toggleRosterPanel();
       else if (event.key.toLowerCase() === "m") setCombatEditing((current) => encounter.mode === "active" ? !current : current);
       else if (event.key === "?") setDialog("shortcuts");
     };
@@ -327,31 +543,37 @@ export function App() {
 
   if (!snapshot || !encounter) return <div className="loading-screen"><div className="loading-die">20</div><span>Opening encounter…</span></div>;
 
-  const panel = snapshot.settings.activePanel;
+  const panel = snapshot.settings.activePanel === "roster" ? null : snapshot.settings.activePanel;
+  const rosterOpen = snapshot.settings.rosterOpen ?? snapshot.settings.activePanel === "roster";
   const rosterIds = new Set(encounter.entities.map((entity) => entity.rosterId).filter(Boolean) as string[]);
   const storedRosterIds = new Set(snapshot.roster.map((member) => member.rosterId));
-  const asidePanel = panel && <AsidePanel
-    panel={panel}
-    onClose={() => commit((current) => ({ ...current, settings: { ...current.settings, activePanel: null } }))}
-    log={encounter.log}
-    sessionNotes={snapshot.sessionNotes}
-    selectedEntity={selectedNotesEntity}
-    roster={snapshot.roster}
-    encounterEntityIds={rosterIds}
-    packs={snapshot.contentPacks}
-    onAddNote={(text) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: [...entity.notes, { id: uid("note"), timestamp: Date.now(), text }] })) : commit((current) => ({ ...current, sessionNotes: [...current.sessionNotes, { id: uid("note"), timestamp: Date.now(), text }] }))}
-    onUpdateNote={(id, text) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.map((note) => note.id === id ? { ...note, text } : note) })) : commit((current) => ({ ...current, sessionNotes: current.sessionNotes.map((note) => note.id === id ? { ...note, text } : note) }))}
-    onRemoveNote={(id, text) => setConfirmation({ title: "Delete this note?", message: `“${text}”`, actionLabel: "Delete Entry", className: "modal--note-delete", hideClose: true, action: () => { if (notesEntityId) mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.filter((note) => note.id !== id) })); else commit((current) => ({ ...current, sessionNotes: current.sessionNotes.filter((note) => note.id !== id) })); setConfirmation(null); } })}
-    onRosterToggle={(member) => rosterIds.has(member.rosterId) ? updateEncounter((current) => removeEntity(current, current.entities.find((entity) => entity.rosterId === member.rosterId)?.id ?? "")) : updateEncounter((current) => ({ ...current, entities: [...current.entities, instantiateRosterMember(member)] }))}
-    onRosterEdit={(member) => setEditor({ entity: member, rosterOnly: true })}
-    onRosterArchive={(member, archived) => commit((current) => ({ ...current, roster: current.roster.map((item) => item.rosterId === member.rosterId ? { ...item, archived } : item), encounters: archived ? current.encounters.map((item) => item.id === encounter.id ? removeEntity(item, item.entities.find((entity) => entity.rosterId === member.rosterId)?.id ?? "") : item) : current.encounters }))}
-    onRosterRemove={(member) => setConfirmation({ title: `Delete ${member.name} from the roster?`, message: "The reusable roster entry will be deleted. Existing encounter copies remain.", actionLabel: "Delete roster entry", action: () => { commit((current) => ({ ...current, roster: current.roster.filter((item) => item.rosterId !== member.rosterId) })); setConfirmation(null); } })}
-    onRosterCreate={() => setEditor({ rosterOnly: true })}
-    onPackInstall={(pack) => { commit((current) => ({ ...current, contentPacks: [...current.contentPacks.filter((item) => item.pack.id !== pack.pack.id), pack] })); showToast(`${pack.pack.name} installed.`); }}
-    onPackRemove={(packId) => setConfirmation({ title: "Uninstall content pack?", message: "The pack will be removed from this browser. Existing encounter data is not deleted.", actionLabel: "Uninstall pack", action: () => { commit((current) => ({ ...current, contentPacks: current.contentPacks.filter((pack) => pack.pack.id !== packId) })); setConfirmation(null); } })}
-  />;
+  const asidePanelProps = {
+    log: encounter.log,
+    sessionNotes: snapshot.sessionNotes,
+    selectedEntity: selectedNotesEntity,
+    roster: snapshot.roster,
+    encounterEntityIds: rosterIds,
+    packs: snapshot.contentPacks,
+    onAddNote: (text: string) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: [...entity.notes, { id: uid("note"), timestamp: Date.now(), text }] })) : commit((current) => ({ ...current, sessionNotes: [...current.sessionNotes, { id: uid("note"), timestamp: Date.now(), text }] })),
+    onUpdateNote: (id: string, text: string) => notesEntityId ? mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.map((note) => note.id === id ? { ...note, text } : note) })) : commit((current) => ({ ...current, sessionNotes: current.sessionNotes.map((note) => note.id === id ? { ...note, text } : note) })),
+    onRemoveNote: (id: string, text: string) => setConfirmation({ title: "Delete this note?", message: `“${text}”`, actionLabel: "Delete Entry", className: "modal--note-delete", hideClose: true, action: () => { if (notesEntityId) mutateEntity(notesEntityId, (entity) => ({ ...entity, notes: entity.notes.filter((note) => note.id !== id) })); else commit((current) => ({ ...current, sessionNotes: current.sessionNotes.filter((note) => note.id !== id) })); setConfirmation(null); } }),
+    onUpdateStatBlock: requestStatBlockUpdate,
+    statBlockLinkedCount: selectedLinkedEnemies.length,
+    statBlockLinkCandidate: selectedStatBlockCandidate,
+    onLinkStatBlock: linkSelectedStatBlock,
+    onUnlinkStatBlock: unlinkSelectedStatBlock,
+    onRosterToggle: (member: RosterMember) => rosterIds.has(member.rosterId) ? updateEncounter((current) => removeEntity(current, current.entities.find((entity) => entity.rosterId === member.rosterId)?.id ?? "")) : updateEncounter((current) => ({ ...current, entities: [...current.entities, instantiateRosterMember(member)] })),
+    onRosterEdit: (member: RosterMember) => setEditor({ entity: member, rosterOnly: true }),
+    onRosterArchive: (member: RosterMember, archived: boolean) => commit((current) => ({ ...current, roster: current.roster.map((item) => item.rosterId === member.rosterId ? { ...item, archived } : item), encounters: archived ? current.encounters.map((item) => item.id === encounter.id ? removeEntity(item, item.entities.find((entity) => entity.rosterId === member.rosterId)?.id ?? "") : item) : current.encounters })),
+    onRosterRemove: (member: RosterMember) => setConfirmation({ title: `Delete ${member.name} from the roster?`, message: "The reusable roster entry will be deleted. Existing encounter copies remain.", actionLabel: "Delete roster entry", action: () => { commit((current) => ({ ...current, roster: current.roster.filter((item) => item.rosterId !== member.rosterId) })); setConfirmation(null); } }),
+    onRosterCreate: () => setEditor({ rosterOnly: true }),
+    onPackInstall: (pack: ContentPackDocument) => { commit((current) => ({ ...current, contentPacks: [...current.contentPacks.filter((item) => item.pack.id !== pack.pack.id), pack] })); showToast(`${pack.pack.name} installed.`); },
+    onPackRemove: (packId: string) => setConfirmation({ title: "Uninstall content pack?", message: "The pack will be removed from this browser. Existing encounter data is not deleted.", actionLabel: "Uninstall pack", action: () => { commit((current) => ({ ...current, contentPacks: current.contentPacks.filter((pack) => pack.pack.id !== packId) })); setConfirmation(null); } }),
+  };
+  const rosterAside = rosterOpen && <AsidePanel panel="roster" onClose={toggleRosterPanel} {...asidePanelProps} />;
+  const utilityAside = panel && <AsidePanel panel={panel} onClose={() => commit((current) => ({ ...current, settings: { ...current.settings, activePanel: null } }))} {...asidePanelProps} />;
 
-  return <div className={`app-shell${panel ? " has-aside" : ""}`}>
+  return <div className={`app-shell${panel || rosterOpen ? " has-aside" : ""}`}>
     <Header
       encounter={encounter}
       saveStatus={saveStatus}
@@ -370,8 +592,8 @@ export function App() {
       onClearEffects={() => setConfirmation({ title: "Clear every effect?", message: "All conditions, reactions, and temporary action effects will be removed from this encounter.", actionLabel: "Clear effects", action: () => { updateEncounter((current) => withLog({ ...current, entities: current.entities.map((entity) => ({ ...entity, effects: [], reactionUsed: false })) }, "system", "All effects cleared.")); setConfirmation(null); } })}
       onResetHP={() => setConfirmation({ title: "Reset all hit points?", message: "Every entity will return to maximum HP and lose temporary HP and death-save state.", actionLabel: "Reset HP", action: () => { updateEncounter((current) => withLog({ ...current, entities: current.entities.map((entity) => syncStabilizedEffect({ ...entity, currentHP: entity.maxHP, tempHP: 0, lethalOverflow: 0, isDead: entity.maxHP === 0, isDying: false, isUnconscious: false, deathSaveSuccesses: 0, deathSaveFailures: 0 })) }, "healing", "All HP reset to maximum.")); setConfirmation(null); } })}
     />
-    <main className={`workspace${panel === "library" ? " workspace--library-aside" : panel === "roster" ? " workspace--roster-aside" : panel ? " workspace--utility-aside" : ""}`}>
-      {panel === "roster" && asidePanel}
+    <main className={`workspace${rosterOpen ? " workspace--roster-aside" : ""}${panel === "library" ? " workspace--library-aside" : panel ? " workspace--utility-aside" : ""}`}>
+      {rosterAside}
       <TurnOrder
         encounter={encounter}
         rosterIds={storedRosterIds}
@@ -382,14 +604,15 @@ export function App() {
         onCancelEdit={cancelEditingEntity}
         onEditDirtyChange={setEditingEntityDirty}
         onHealthAction={healthAction}
-        onConfigureHealth={(entity, currentHP, maxHP) => mutateEntity(entity.id, (current) => syncStabilizedEffect(configureEntityHP(current, currentHP, maxHP)))}
+        onConfigureHealth={configureHealth}
         onInitiativeChange={(entity, initiative) => mutateEntity(entity.id, (current) => setInitiative(current, initiative))}
+        onQuickUpdate={quickUpdateEntity}
         effects={effects}
         onAddEffect={(entity: EncounterEntity, definition: EffectDefinition, duration: number | null) => mutateEntity(entity.id, (current) => current.effects.some((effect) => effect.definitionId === definition.id) ? current : { ...current, effects: [...current.effects, activateEffect(definition, duration, { entityId: encounter.activeEntityId ?? entity.id, currentRound: encounter.activeEntityId ? encounter.round : undefined })] }, `${definition.name} applied to ${entity.name}.`)}
         onUpdateEffect={(entity: EncounterEntity, effectId: string, changes: Partial<ActiveEffect>) => mutateEntity(entity.id, (current) => ({ ...current, effects: current.effects.map((effect) => effect.id === effectId ? { ...effect, ...changes } : effect) }))}
         onRemoveEffect={(entity, effectId) => mutateEntity(entity.id, (current) => ({ ...current, effects: current.effects.filter((effect) => effect.id !== effectId) }))}
         onRemove={(entity) => setConfirmation({ title: `Remove ${entity.name}?`, message: "This removes the entity from this encounter. A linked party-roster entry is kept.", actionLabel: "Remove entity", action: () => { updateEncounter((current) => removeEntity(current, entity.id)); if (editingEntityId === entity.id) { setEditingEntityId(null); setEditingEntityDirty(false); } setConfirmation(null); } })}
-        onDuplicate={(entity) => updateEncounter((current) => ({ ...current, entities: [...current.entities, { ...structuredClone(entity), id: uid("entity"), name: `${entity.name} copy`, isPersistent: false, rosterId: null }] }))}
+        onDuplicate={(entity) => updateEncounter((current) => ({ ...current, entities: [...current.entities, { ...structuredClone(entity), id: uid("entity"), name: nextDuplicateEntityName(entity.name, current.entities.map((item) => item.name)), isPersistent: false, rosterId: null }] }))}
         onToggleRoster={toggleEntityRoster}
         onDelay={() => updateEncounter(delayTurn)}
         onHold={(entity) => applyNamedEffect(entity, "readied-action")}
@@ -406,14 +629,14 @@ export function App() {
         onDraftComplete={completeDraft}
         onDraftCancel={() => setDraftEntity(null)}
       />
-      {panel === "library" && asidePanel}
+      {panel === "library" && utilityAside}
       <UtilityRail panel={panel} lastPanel={lastPanel} onSelect={togglePanel} />
-      {panel && panel !== "roster" && panel !== "library" && asidePanel}
+      {panel && panel !== "library" && utilityAside}
     </main>
     <ManagementBar
       encounter={encounter}
       combatEditing={combatEditing}
-      onRoster={() => commit((current) => ({ ...current, settings: { ...current.settings, activePanel: current.settings.activePanel === "roster" ? null : "roster" } }))}
+      onRoster={toggleRosterPanel}
       onSort={() => updateEncounter(sortInitiative)}
       onRollAll={() => updateEncounter(rollAll)}
       onRollType={(type) => updateEncounter((current) => rollAll(current, type))}
@@ -425,7 +648,7 @@ export function App() {
     />
 
     <input ref={importInput} hidden type="file" accept="application/json,.json" onChange={(event) => { void importDocument(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-    {editor && <EntityEditor entity={editor.entity} title={editor.rosterOnly ? "Add Character" : undefined} onSave={saveEntity} onClose={() => setEditor(null)} />}
+    {editor && <EntityEditor entity={editor.entity} title={editor.rosterOnly ? (editor.entity ? "Edit Character" : "Add Character") : undefined} rosterOnly={editor.rosterOnly} availableCreatures={encounter.entities} onSave={saveEntity} onClose={() => setEditor(null)} />}
     {dialog === "new" && <Modal
       title="New Encounter"
       hideClose
@@ -457,6 +680,20 @@ export function App() {
     {dialog === "load" && <Modal title="Load Encounter" onClose={() => setDialog(null)}><div className="encounter-list">{snapshot.encounters.map((item) => <button key={item.id} className={item.id === encounter.id ? "is-current" : ""} onClick={() => { commit((current) => ({ ...current, settings: { ...current.settings, activeEncounterId: item.id } })); setDialog(null); }}><div><strong>{item.name}</strong><small>{RULESETS[item.rulesetId]?.shortName ?? "5e"} · {item.entities.length} entities</small></div><span>{item.mode === "active" ? `Round ${item.round}` : "Staging"}</span></button>)}</div></Modal>}
     {dialog === "delete" && <Modal title="Delete Encounter" onClose={() => setDialog(null)} footer={<><Button tone="quiet" onClick={() => setDialog(null)}>Cancel</Button><Button tone="danger" onClick={() => { const remaining = snapshot.encounters.filter((item) => item.id !== encounter.id); const next = remaining[0] ?? createEncounter(); setSnapshot({ ...snapshot, encounters: remaining.length ? remaining : [next], settings: { ...snapshot.settings, activeEncounterId: next.id } }); setDialog(null); }}>Delete encounter</Button></>}><p className="confirm-copy">Delete <strong>{encounter.name}</strong>? This removes its entities and combat log from this browser.</p></Modal>}
     {dialog === "shortcuts" && <Modal title="Keyboard shortcuts" onClose={() => setDialog(null)}><dl className="shortcut-list"><div><dt>Space / →</dt><dd>Next turn</dd></div><div><dt>←</dt><dd>Previous turn</dd></div><div><dt>N</dt><dd>New entity</dd></div><div><dt>S</dt><dd>Sort initiative</dd></div><div><dt>E</dt><dd>End round</dd></div><div><dt>L</dt><dd>Combat log</dd></div><div><dt>R</dt><dd>Party roster</dd></div><div><dt>M</dt><dd>Edit entities during combat</dd></div><div><dt>?</dt><dd>Show shortcuts</dd></div><div><dt>Esc</dt><dd>Close dialog</dd></div></dl></Modal>}
+    {sharedStatBlockUpdate && <Modal
+      title={sharedStatBlockUpdate.mode === "linked" ? "Update shared stat block?" : "Share this stat block?"}
+      className="modal--shared-stat-block"
+      onClose={() => { setSharedStatBlockUpdate(null); setIndependentName(""); }}
+      footer={sharedStatBlockUpdate.mode === "linked"
+        ? <><Button tone="quiet" disabled={!independentName.trim()} onClick={() => {
+            const entity = encounter.entities.find((candidate) => candidate.id === sharedStatBlockUpdate.entityId);
+            const name = nextAvailableEntityName(independentName, encounter.entities.filter((candidate) => candidate.id !== entity?.id).map((candidate) => candidate.name));
+            applyStatBlockUpdate(sharedStatBlockUpdate, false, name);
+          }}>Unlink and save</Button><Button tone="primary" onClick={() => applyStatBlockUpdate(sharedStatBlockUpdate, true)}>Update {sharedStatBlockUpdate.entityIds.length} enemies</Button></>
+        : <><Button tone="quiet" onClick={() => applyStatBlockUpdate(sharedStatBlockUpdate, false)}>Only this enemy</Button><Button tone="primary" onClick={() => applyStatBlockUpdate(sharedStatBlockUpdate, true)}>Share with {sharedStatBlockUpdate.entityIds.length - 1} {sharedStatBlockUpdate.entityIds.length === 2 ? "match" : "matches"}</Button></>}
+    >
+      {sharedStatBlockUpdate.mode === "linked" ? <div className="shared-stat-block-copy"><p>This creature shares its stat block with {sharedStatBlockUpdate.entityIds.length - 1} other {sharedStatBlockUpdate.entityIds.length === 2 ? "enemy" : "enemies"}. Update every linked enemy, or make this one independent.</p><label className="field field--full"><span>Name for independent enemy</span><input autoFocus value={independentName} onFocus={(event) => event.currentTarget.select()} onInput={(event) => setIndependentName(event.currentTarget.value)} /></label></div> : <p className="confirm-copy">Other enemies in this encounter have the same creature name. Sharing keeps their AC, maximum HP, abilities, traits, and actions together.</p>}
+    </Modal>}
     {confirmation && <Modal title={confirmation.title} onClose={() => setConfirmation(null)} hideClose={confirmation.hideClose} className={confirmation.className} footer={<><Button tone="quiet" onClick={() => setConfirmation(null)}>Cancel</Button><Button tone="danger" onClick={confirmation.action}>{confirmation.actionLabel}</Button></>}><p className="confirm-copy">{confirmation.message}</p></Modal>}
     {toast && <div className="toast" role="status">{toast}</div>}
   </div>;

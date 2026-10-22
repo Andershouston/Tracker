@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import type { EncounterEntity, EntityType } from "../../domain/types";
+import { canonicalEntityName } from "../../domain/stat-block-links";
+import { CreatureNameAutocomplete } from "./CreatureNameAutocomplete";
 
 interface InlineEntityEditorProps {
   entity: EncounterEntity;
+  availableCreatures: EncounterEntity[];
   onChange: (entity: EncounterEntity) => void;
-  onComplete: (entity: EncounterEntity) => void;
+  onComplete: (entity: EncounterEntity, statBlockSourceId?: string) => void;
   onCancel: () => void;
 }
 
@@ -16,7 +19,7 @@ const typeOptions: Array<{ type: EntityType; label: string; icon: string }> = [
   { type: "Neutral", label: "NPC", icon: "/icons/ui/npc.svg" },
 ];
 
-export function InlineEntityEditor({ entity, onChange, onComplete, onCancel }: InlineEntityEditorProps) {
+export function InlineEntityEditor({ entity, availableCreatures, onChange, onComplete, onCancel }: InlineEntityEditorProps) {
   const [draft, setDraft] = useState<EncounterEntity>(entity);
   const [name, setName] = useState(entity.name);
   const [initiativeModifier, setInitiativeModifier] = useState(String(entity.initiativeModifier || ""));
@@ -41,6 +44,20 @@ export function InlineEntityEditor({ entity, onChange, onComplete, onCancel }: I
     if (!name.trim()) return;
     onComplete({ ...value(), name: name.trim() });
   };
+  const chooseCreature = (source: EncounterEntity) => {
+    const next = value({
+      name: canonicalEntityName(source.name),
+      type: "Enemy",
+      initiativeModifier: source.initiativeModifier,
+      armorClass: source.armorClass,
+      maxHP: source.maxHP,
+      currentHP: source.maxHP,
+      statBlock: source.statBlock ? structuredClone(source.statBlock) : undefined,
+      statBlockLinkId: source.statBlockLinkId,
+      statBlockUnlinked: false,
+    });
+    onComplete(next, source.id);
+  };
 
   return <article className="inline-entity-editor">
     <span className="inline-entity-editor__drag"><img src="/icons/ui/drag-muted.svg" alt="" /></span>
@@ -51,7 +68,7 @@ export function InlineEntityEditor({ entity, onChange, onComplete, onCancel }: I
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
     <label className="inline-field inline-field--initiative" title="Initiative modifier"><img src="/icons/ui/initiative-modifier.svg" alt="" /><input type="number" aria-label="Initiative modifier" placeholder="0" value={initiativeModifier} onInput={(event) => { setInitiativeModifier(event.currentTarget.value); onChange(value({ initiativeModifier: event.currentTarget.valueAsNumber || 0 })); }} /></label>
-    <input autoFocus className="inline-field inline-field--name" aria-label="Entity name" placeholder="Entity name" value={name} onInput={(event) => { setName(event.currentTarget.value); onChange(value({ name: event.currentTarget.value })); }} onKeyDown={(event) => { if (event.key === "Enter") finish(); if (event.key === "Escape") onCancel(); }} />
+    <CreatureNameAutocomplete autoFocus className="inline-field inline-field--name" ariaLabel="Entity name" placeholder="Entity name" value={name} entities={availableCreatures} onChange={(nextName) => { setName(nextName); onChange(value({ name: nextName })); }} onSelect={chooseCreature} onEnter={finish} onEscape={onCancel} />
     <label className="inline-field inline-field--ac" title="Armor Class"><img src="/icons/ui/field-shield.svg" alt="" /><input type="number" min="0" aria-label="Armor Class" value={armorClass} onInput={(event) => { setArmorClass(event.currentTarget.value); onChange(value({ armorClass: event.currentTarget.valueAsNumber || 10 })); }} /></label>
     <label className="inline-field inline-field--hp" title="Maximum Hit Points"><img src="/icons/ui/field-heart.svg" alt="" /><input type="number" min="0" step="1" aria-label="Maximum Hit Points" value={maxHP} onInput={(event) => { setMaxHP(event.currentTarget.value); const hp = Math.max(0, Math.floor(event.currentTarget.valueAsNumber || 0)); onChange(value({ maxHP: hp, currentHP: hp })); }} onKeyDown={(event) => { if (event.key === "Enter") finish(); }} /></label>
     <div className="inline-entity-editor__actions">

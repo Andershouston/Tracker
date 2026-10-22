@@ -1,0 +1,91 @@
+{
+  "name": "Druid",
+  "identity": "Medium or Small Humanoid (Druid), Neutral",
+  "armorClass": "13 (Studded Leather Armor)",
+  "initiative": "+1 (11)",
+  "hitPoints": "44 (8d8 + 8)",
+  "speed": "30 ft.",
+  "abilities": {
+    "str": {
+      "score": 10,
+      "modifier": "+0"
+    },
+    "dex": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "con": {
+      "score": 13,
+      "modifier": "+1"
+    },
+    "int": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "wis": {
+      "score": 16,
+      "modifier": "+3"
+    },
+    "cha": {
+      "score": 11,
+      "modifier": "+0"
+    }
+  },
+  "details": [
+    {
+      "label": "Skills",
+      "value": "Medicine +5, Nature +3, Perception +5"
+    },
+    {
+      "label": "Gear",
+      "value": "Studded Leather Armor"
+    },
+    {
+      "label": "Senses",
+      "value": "Passive Perception 15"
+    },
+    {
+      "label": "Languages",
+      "value": "Common, Druidic, Sylvan"
+    },
+    {
+      "label": "Challenge",
+      "value": "2 (450 XP; PB +2)"
+    },
+    {
+      "label": "Habitat",
+      "value": "Any"
+    },
+    {
+      "label": "Treasure",
+      "value": "Individual, Relics"
+    },
+    {
+      "label": "Source",
+      "value": "Monster Manual (2024), page 106; SRD 5.2"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Actions",
+      "entries": [
+        {
+          "name": "Multiattack",
+          "description": "The druid makes two attacks, choosing Vine Staff or Verdant Wisp for each attack."
+        },
+        {
+          "name": "Vine Staff",
+          "description": "Melee Attack Roll: +5, reach 5 ft. Hit: 7 (1d8 + 3) Bludgeoning damage plus 2 (1d4) Poison damage."
+        },
+        {
+          "name": "Verdant Wisp",
+          "description": "Ranged Attack Roll: +5, range 90 ft. Hit: 10 (3d6) Radiant damage."
+        },
+        {
+          "name": "Spellcasting",
+          "description": "The druid uses Wisdom for spellcasting (save DC 13). At will: Druidcraft, Speak with Animals. 2/day each: Entangle, Thunderwave. 1/day each: Animal Messenger, Longstrider, Moonbeam."
+        }
+      ]
+    }
+  ]
+}

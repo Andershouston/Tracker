@@ -57,12 +57,43 @@ export interface EntityNote {
   text: string;
 }
 
+export type AbilityKey = "str" | "dex" | "con" | "int" | "wis" | "cha";
+
+export interface MonsterAbility {
+  score: number;
+  modifier?: string;
+  save?: string;
+}
+
+export interface MonsterStatEntry {
+  name: string;
+  description: string;
+}
+
+export interface MonsterStatSection {
+  title: string;
+  entries: MonsterStatEntry[];
+}
+
+export interface MonsterStatBlock {
+  name: string;
+  identity?: string;
+  armorClass?: string;
+  initiative?: string;
+  hitPoints?: string;
+  speed?: string;
+  abilities?: Partial<Record<AbilityKey, MonsterAbility>>;
+  details: Array<{ label: string; value: string }>;
+  sections: MonsterStatSection[];
+}
+
 export interface CreatureTemplate {
   id: string;
   name: string;
   armorClass: number;
   hitPoints: { average: number; formula?: string };
   initiativeModifier: number;
+  statBlock?: MonsterStatBlock;
   rulesetCompatibility?: RulesetId[];
   sourceRef?: ContentReference;
 }
@@ -94,6 +125,9 @@ export interface EncounterEntity {
   armorClass: number;
   effects: ActiveEffect[];
   notes: EntityNote[];
+  statBlock?: MonsterStatBlock;
+  statBlockLinkId?: string | null;
+  statBlockUnlinked?: boolean;
   isPersistent: boolean;
   isDead: boolean;
   isUnconscious: boolean;
@@ -172,6 +206,7 @@ export interface ContentPackDocument {
 export interface AppSettings {
   activeEncounterId: string | null;
   activePanel: AppPanel | null;
+  rosterOpen?: boolean;
   persistenceRequested: boolean;
 }
 

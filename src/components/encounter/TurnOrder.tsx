@@ -15,6 +15,7 @@ interface TurnOrderProps {
   onHealthAction: (entity: EncounterEntity, action: "damage" | "heal" | "temp" | "set", amount: number) => void;
   onConfigureHealth: (entity: EncounterEntity, currentHP: number | undefined, maxHP: number | undefined) => void;
   onInitiativeChange: (entity: EncounterEntity, initiative: number | null) => void;
+  onQuickUpdate: (entity: EncounterEntity, changes: Partial<Pick<EncounterEntity, "name" | "armorClass">>) => void;
   effects: EffectDefinition[];
   onAddEffect: (entity: EncounterEntity, definition: EffectDefinition, duration: number | null) => void;
   onUpdateEffect: (entity: EncounterEntity, effectId: string, changes: Partial<ActiveEffect>) => void;
@@ -34,7 +35,7 @@ interface TurnOrderProps {
   onAdd: () => void;
   draftEntity: EncounterEntity | null;
   onDraftChange: (entity: EncounterEntity) => void;
-  onDraftComplete: (entity: EncounterEntity) => void;
+  onDraftComplete: (entity: EncounterEntity, statBlockSourceId?: string) => void;
   onDraftCancel: () => void;
 }
 
@@ -62,6 +63,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onHealthAction={(action, amount) => props.onHealthAction(entity, action, amount)}
       onConfigureHealth={(currentHP, maxHP) => props.onConfigureHealth(entity, currentHP, maxHP)}
       onInitiativeChange={(initiative) => props.onInitiativeChange(entity, initiative)}
+      onQuickUpdate={(changes) => props.onQuickUpdate(entity, changes)}
       effects={props.effects}
       onAddEffect={(definition, duration) => props.onAddEffect(entity, definition, duration)}
       onUpdateEffect={(effectId, changes) => props.onUpdateEffect(entity, effectId, changes)}
@@ -80,7 +82,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onDragStart={() => { dragIndex.current = index; }}
       onDrop={() => { if (dragIndex.current !== null) props.onReorder(dragIndex.current, index); dragIndex.current = null; }}
     />)}
-    {props.draftEntity && <InlineEntityEditor key={props.draftEntity.id} entity={props.draftEntity} onChange={props.onDraftChange} onComplete={props.onDraftComplete} onCancel={props.onDraftCancel} />}
+    {props.draftEntity && <InlineEntityEditor key={props.draftEntity.id} entity={props.draftEntity} availableCreatures={props.encounter.entities} onChange={props.onDraftChange} onComplete={props.onDraftComplete} onCancel={props.onDraftCancel} />}
     {staging && <button className="add-row" onClick={props.onAdd}><span className="add-row__icon"><img src="/icons/ui/add.svg" alt="" /></span><strong>New Entity</strong></button>}
   </div>;
 }

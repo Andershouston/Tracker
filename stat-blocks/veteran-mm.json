@@ -1,0 +1,83 @@
+{
+  "name": "Veteran",
+  "identity": "Medium Humanoid (Any Race), Any Alignment",
+  "armorClass": "17 (Splint Armor)",
+  "initiative": "+1 (11)",
+  "hitPoints": "58 (9d8 + 18)",
+  "speed": "30 ft.",
+  "abilities": {
+    "str": {
+      "score": 16,
+      "modifier": "+3"
+    },
+    "dex": {
+      "score": 13,
+      "modifier": "+1"
+    },
+    "con": {
+      "score": 14,
+      "modifier": "+2"
+    },
+    "int": {
+      "score": 10,
+      "modifier": "+0"
+    },
+    "wis": {
+      "score": 11,
+      "modifier": "+0"
+    },
+    "cha": {
+      "score": 10,
+      "modifier": "+0"
+    }
+  },
+  "details": [
+    {
+      "label": "Skills",
+      "value": "Athletics +5, Perception +2"
+    },
+    {
+      "label": "Senses",
+      "value": "Passive Perception 12"
+    },
+    {
+      "label": "Languages",
+      "value": "any one language (usually Common)"
+    },
+    {
+      "label": "Challenge",
+      "value": "3 (700 XP; PB +2)"
+    },
+    {
+      "label": "Habitat",
+      "value": "Coastal, Mountain, Grassland, Hill, Arctic, Urban, Forest, Underdark"
+    },
+    {
+      "label": "Source",
+      "value": "MM page 350; SRD 5.1"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Actions",
+      "entries": [
+        {
+          "name": "Multiattack",
+          "description": "The veteran makes two longsword attacks. If it has a shortsword drawn, it can also make a shortsword attack."
+        },
+        {
+          "name": "Longsword",
+          "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 7 (1d8 + 3) slashing damage, or 8 (1d10 + 3) slashing damage if used with two hands."
+        },
+        {
+          "name": "Shortsword",
+          "description": "Melee Weapon Attack: +5 to hit, reach 5 ft., one target. Hit: 6 (1d6 + 3) piercing damage."
+        },
+        {
+          "name": "Heavy Crossbow",
+          "description": "Ranged Weapon Attack: +3 to hit, range 100/400 ft., one target. Hit: 6 (1d10 + 1) piercing damage."
+        }
+      ]
+    }
+  ]
+}

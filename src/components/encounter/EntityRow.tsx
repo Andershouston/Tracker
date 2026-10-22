@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { effectIconPath } from "../../content/builtin";
 import type { ActiveEffect, EffectDefinition, EncounterEntity } from "../../domain/types";
@@ -6,7 +6,8 @@ import { CombatHealthPopover } from "./CombatHealthPopover";
 import { EffectManagerPopover } from "./EffectManagerPopover";
 import { EffectPicker } from "./EffectPicker";
 import { InlineEntityEditRow } from "./InlineEntityEditRow";
-import { StagingHealthPopover } from "./StagingHealthPopover";
+
+type QuickEditField = "name" | "armorClass" | "currentHP" | "maxHP";
 
 interface EntityRowProps {
   entity: EncounterEntity;
@@ -21,6 +22,7 @@ interface EntityRowProps {
   onHealthAction: (action: "damage" | "heal" | "temp" | "set", amount: number) => void;
   onConfigureHealth: (currentHP: number | undefined, maxHP: number | undefined) => void;
   onInitiativeChange: (initiative: number | null) => void;
+  onQuickUpdate: (changes: Partial<Pick<EncounterEntity, "name" | "armorClass">>) => void;
   effects: EffectDefinition[];
   onAddEffect: (definition: EffectDefinition, duration: number | null) => void;
   onUpdateEffect: (effectId: string, changes: Partial<ActiveEffect>) => void;
@@ -46,6 +48,13 @@ export function EntityRow(props: EntityRowProps) {
   const [hpOpen, setHpOpen] = useState(false);
   const [effectOpen, setEffectOpen] = useState(false);
   const [managedEffectId, setManagedEffectId] = useState<string | null>(null);
+  const [quickEdit, setQuickEdit] = useState<{ field: QuickEditField; value: string } | null>(null);
+  const quickInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!quickEdit) return;
+    quickInputRef.current?.focus();
+    quickInputRef.current?.select();
+  }, [quickEdit?.field]);
   if (props.editing) return <InlineEntityEditRow entity={entity} onSave={props.onSaveEdit} onCancel={props.onCancelEdit} onDirtyChange={props.onEditDirtyChange} />;
   const openHealthFromMenu = () => {
     setMenuOpen(false);
@@ -67,6 +76,46 @@ export function EntityRow(props: EntityRowProps) {
   const iconStateLabel = isDead ? "Dead" : isDying ? "Dying" : entity.isUnconscious ? "Stable" : entity.reactionUsed ? "Reaction used" : "Alive";
   const stateIcon = iconState === "alive" ? <img src={aliveIcon} alt="" /> : <span className={`entity-type__state-icon entity-type__state-icon--${iconState}`} aria-hidden="true" />;
   const inRoster = props.inRoster;
+  const hasTabbedDetails = entity.type === "Ally" || entity.type === "Neutral";
+  const detailsLabel = entity.type === "Enemy" ? "Stat block" : hasTabbedDetails ? "Notes and stat block" : "Notes";
+
+  const beginQuickEdit = (field: QuickEditField, value: string | number) => setQuickEdit({ field, value: String(value) });
+  const cancelQuickEdit = () => setQuickEdit(null);
+  const commitQuickEdit = () => {
+    if (!quickEdit) return;
+    const { field, value } = quickEdit;
+    setQuickEdit(null);
+    if (field === "name") {
+      const name = value.trim();
+      if (name && name !== entity.name) props.onQuickUpdate({ name });
+      return;
+    }
+    if (!/^\d+$/.test(value.trim())) return;
+    const next = Number(value);
+    if (field === "armorClass" && next !== entity.armorClass) props.onQuickUpdate({ armorClass: next });
+    if (field === "currentHP" && next <= entity.maxHP && next !== entity.currentHP) props.onConfigureHealth(next, undefined);
+    if (field === "maxHP" && next !== entity.maxHP) props.onConfigureHealth(undefined, next);
+  };
+  const quickEditKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelQuickEdit();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      commitQuickEdit();
+    }
+  };
+  const quickInput = (field: QuickEditField, label: string, className: string) => <input
+    ref={quickInputRef}
+    className={className}
+    inputMode={field === "name" ? undefined : "numeric"}
+    aria-label={label}
+    value={quickEdit?.value ?? ""}
+    onFocus={(event) => event.currentTarget.select()}
+    onChange={(event) => setQuickEdit({ field, value: event.currentTarget.value })}
+    onKeyDown={quickEditKeyDown}
+    onBlur={commitQuickEdit}
+  />;
 
   const initiativeControl = props.staging
     ? <label className="initiative initiative--editable" title="Initiative">
@@ -104,6 +153,16 @@ export function EntityRow(props: EntityRowProps) {
     <span className="health__max" title={`Maximum HP: ${entity.maxHP}`}>{entity.maxHP}</span>
   </button>;
 
+  const stagingHealthControl = <span className="health health--staging-edit">
+    {quickEdit?.field === "currentHP"
+      ? <span className="health__current health__current--editing"><img src="/icons/ui/heart.svg" alt="" />{quickInput("currentHP", `Current HP for ${entity.name}`, "health__input")}</span>
+      : <button className={`health__current${entity.tempHP > 0 ? " has-temp" : ""}`} title={`Current HP: ${entity.currentHP}${entity.tempHP > 0 ? ` (${entity.tempHP} temp HP)` : ""}`} aria-label={`Edit current HP for ${entity.name}`} onMouseDown={(event) => event.preventDefault()} onClick={() => beginQuickEdit("currentHP", entity.currentHP)}><img src="/icons/ui/heart.svg" alt="" />{displayedHP}</button>}
+    <i />
+    {quickEdit?.field === "maxHP"
+      ? <span className="health__max health__max--editing">{quickInput("maxHP", `Maximum HP for ${entity.name}`, "health__input")}</span>
+      : <button className="health__max" title={`Maximum HP: ${entity.maxHP}`} aria-label={`Edit maximum HP for ${entity.name}`} onMouseDown={(event) => event.preventDefault()} onClick={() => beginQuickEdit("maxHP", entity.maxHP)}>{entity.maxHP}</button>}
+  </span>;
+
   return <article
     id={`entity-${entity.id}`}
     className={`entity-row${props.staging ? " entity-row--staging" : ""}${props.active ? " is-active" : ""}${stateClass}${typeClass}`}
@@ -120,12 +179,20 @@ export function EntityRow(props: EntityRowProps) {
             ? <span className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type === "Neutral" ? "NPC" : entity.type} · ${iconStateLabel}`}>{stateIcon}</span>
             : <button className={`entity-type entity-type--${entity.type.toLowerCase()}`} title={`${entity.type} · ${iconStateLabel} · toggle reaction used`} onClick={props.onReaction}>{stateIcon}</button>}
           {initiativeControl}
-          <span className="entity-name">{entity.name}</span>
-          {!isDead && !isDying && <span className="armor" title="Armor Class"><img src="/icons/ui/shield.svg" alt="" />{entity.armorClass}</span>}
-          {!isDead && <Popover.Root open={hpOpen} onOpenChange={(open) => { setHpOpen(open); if (open) setMenuOpen(false); }}>
+          {props.staging
+            ? quickEdit?.field === "name"
+              ? quickInput("name", `Name for ${entity.name}`, "entity-name entity-name--input")
+              : <button className="entity-name entity-name--editable" aria-label={`Edit name for ${entity.name}`} onMouseDown={(event) => event.preventDefault()} onClick={() => beginQuickEdit("name", entity.name)}>{entity.name}</button>
+            : <span className="entity-name">{entity.name}</span>}
+          {!isDead && !isDying && (props.staging
+            ? quickEdit?.field === "armorClass"
+              ? <label className="armor armor--editing"><img src="/icons/ui/shield.svg" alt="" />{quickInput("armorClass", `Armor Class for ${entity.name}`, "armor__input")}</label>
+              : <button className="armor armor--editable" aria-label={`Edit Armor Class for ${entity.name}`} onMouseDown={(event) => event.preventDefault()} onClick={() => beginQuickEdit("armorClass", entity.armorClass)}><img src="/icons/ui/shield.svg" alt="" />{entity.armorClass}</button>
+            : <span className="armor" title="Armor Class"><img src="/icons/ui/shield.svg" alt="" />{entity.armorClass}</span>)}
+          {!isDead && props.staging && stagingHealthControl}
+          {!isDead && !props.staging && <Popover.Root open={hpOpen} onOpenChange={(open) => { setHpOpen(open); if (open) setMenuOpen(false); }}>
               <Popover.Trigger asChild>{healthControl}</Popover.Trigger>
-              {hpOpen && props.staging && <StagingHealthPopover entity={entity} onClose={() => setHpOpen(false)} onCommit={(currentHP, maxHP) => { props.onConfigureHealth(currentHP, maxHP); setHpOpen(false); }} />}
-              {hpOpen && !props.staging && <CombatHealthPopover entity={entity} onClose={() => setHpOpen(false)} onAction={props.onHealthAction} />}
+              {hpOpen && <CombatHealthPopover entity={entity} onClose={() => setHpOpen(false)} onAction={props.onHealthAction} />}
             </Popover.Root>}
         </div>
         {!props.staging && !isDead && <>
@@ -179,9 +246,9 @@ export function EntityRow(props: EntityRowProps) {
           <img className="party-status-icon party-status-icon--rest" src={inRoster ? "/icons/ui/party-status.svg" : "/icons/ui/party-status-in.svg"} alt="" />
           <img className="party-status-icon party-status-icon--active" src={inRoster ? "/icons/ui/party-status-out-active.svg" : "/icons/ui/party-status-in-active.svg"} alt="" />
         </button>}
-        <button title={entity.notes.length ? "View notes" : "Add note"} className={`entity-notes-button${entity.notes.length ? " has-notes" : ""}`} aria-label={`Notes for ${entity.name}`} onClick={props.onNotes}>
-          <img className="entity-notes-button__rest" src={entity.notes.length ? "/icons/ui/notes-has.svg" : "/icons/ui/notes.svg"} alt="" />
-          <img className="entity-notes-button__active" src={entity.notes.length ? "/icons/ui/notes-has-active.svg" : "/icons/ui/notes-active.svg"} alt="" />
+        <button title={entity.type === "Enemy" ? (entity.statBlock ? "View stat block" : "Add stat block") : hasTabbedDetails ? `View ${detailsLabel.toLocaleLowerCase()}` : (entity.notes.length ? "View notes" : "Add note")} className={`entity-notes-button${entity.type === "Enemy" ? (entity.statBlock ? " has-notes" : "") : (entity.notes.length ? " has-notes" : "")}`} aria-label={`${detailsLabel} for ${entity.name}`} onClick={props.onNotes}>
+          <img className="entity-notes-button__rest" src={entity.type === "Enemy" ? (entity.statBlock ? "/icons/ui/stat-block-has.svg" : "/icons/ui/stat-block.svg") : (entity.notes.length ? "/icons/ui/notes-has.svg" : "/icons/ui/notes.svg")} alt="" />
+          <img className="entity-notes-button__active" src={entity.type === "Enemy" ? "/icons/ui/stat-block-active.svg" : (entity.notes.length ? "/icons/ui/notes-has-active.svg" : "/icons/ui/notes-active.svg")} alt="" />
         </button>
         <DropdownMenu.Root open={menuOpen} onOpenChange={(open) => { setMenuOpen(open); if (open) setHpOpen(false); }}>
           <DropdownMenu.Trigger asChild><button id={`entity-options-${entity.id}`} className={menuOpen ? "is-engaged" : ""} title="More actions" aria-label={`More actions for ${entity.name}`}><img src="/icons/ui/more.svg" alt="" /></button></DropdownMenu.Trigger>
@@ -192,7 +259,7 @@ export function EntityRow(props: EntityRowProps) {
               {props.staging ? <DropdownMenu.Item onSelect={props.onToggleRoster}>{inRoster ? "Remove from Roster" : "Add to Roster"}</DropdownMenu.Item> : <>
                 {!isDead && <DropdownMenu.Item onSelect={(event) => event.preventDefault()} onClick={openHealthFromMenu}>Adjust health</DropdownMenu.Item>}
                 {!isDead && <DropdownMenu.Item onSelect={(event) => event.preventDefault()} onClick={openEffectsFromMenu}>Add effect</DropdownMenu.Item>}
-                <DropdownMenu.Item onSelect={props.onNotes}>Notes</DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={props.onNotes}>{detailsLabel}</DropdownMenu.Item>
               </>}
               <DropdownMenu.Item onSelect={props.onDuplicate}>Duplicate</DropdownMenu.Item>
               {!props.staging && <>

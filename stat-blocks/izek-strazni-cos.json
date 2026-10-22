@@ -1,0 +1,84 @@
+{
+  "name": "Izek Strazni",
+  "identity": "Medium Humanoid (Human), Neutral Evil",
+  "armorClass": "14 (Studded Leather Armor)",
+  "initiative": "+2 (12)",
+  "hitPoints": "112 (15d8 + 45)",
+  "speed": "30 ft.",
+  "abilities": {
+    "str": {
+      "score": 18,
+      "modifier": "+4"
+    },
+    "dex": {
+      "score": 15,
+      "modifier": "+2"
+    },
+    "con": {
+      "score": 16,
+      "modifier": "+3"
+    },
+    "int": {
+      "score": 10,
+      "modifier": "+0"
+    },
+    "wis": {
+      "score": 9,
+      "modifier": "-1"
+    },
+    "cha": {
+      "score": 15,
+      "modifier": "+2"
+    }
+  },
+  "details": [
+    {
+      "label": "Skills",
+      "value": "Intimidation +8, Perception +2"
+    },
+    {
+      "label": "Senses",
+      "value": "Passive Perception 12"
+    },
+    {
+      "label": "Languages",
+      "value": "Common"
+    },
+    {
+      "label": "Challenge",
+      "value": "5 (1,800 XP; PB +3)"
+    },
+    {
+      "label": "Source",
+      "value": "CoS page 232"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Traits",
+      "entries": [
+        {
+          "name": "Brute",
+          "description": "A melee weapon deals one extra die of its damage when Izek hits with it (included in the attack)."
+        }
+      ]
+    },
+    {
+      "title": "Actions",
+      "entries": [
+        {
+          "name": "Multiattack",
+          "description": "Izek makes two attacks with his battleaxe."
+        },
+        {
+          "name": "Battleaxe",
+          "description": "Melee Weapon Attack: +7 to hit, reach 5 ft., one target. Hit: 13 (2d8 + 4) slashing damage, or 15 (2d10 + 4) when used with two hands."
+        },
+        {
+          "name": "Hurl Flame",
+          "description": "Ranged Spell Attack: +5 to hit, range 60 ft., one target. Hit: 10 (3d6) fire damage. If the target is a flammable object that isn't being worn or carried, it catches fire."
+        }
+      ]
+    }
+  ]
+}

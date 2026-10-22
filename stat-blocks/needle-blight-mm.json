@@ -1,0 +1,75 @@
+{
+  "name": "Needle Blight",
+  "identity": "Medium Plant, Neutral Evil",
+  "armorClass": "12 (Natural Armor)",
+  "initiative": "+1 (11)",
+  "hitPoints": "11 (2d8 + 2)",
+  "speed": "30 ft.",
+  "abilities": {
+    "str": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "dex": {
+      "score": 12,
+      "modifier": "+1"
+    },
+    "con": {
+      "score": 13,
+      "modifier": "+1"
+    },
+    "int": {
+      "score": 4,
+      "modifier": "-3"
+    },
+    "wis": {
+      "score": 8,
+      "modifier": "-1"
+    },
+    "cha": {
+      "score": 3,
+      "modifier": "-4"
+    }
+  },
+  "details": [
+    {
+      "label": "Condition Immunities",
+      "value": "Blinded, Deafened"
+    },
+    {
+      "label": "Senses",
+      "value": "Blindsight 60 ft. (blind beyond this radius), Passive Perception 9"
+    },
+    {
+      "label": "Languages",
+      "value": "Understands Common but can't speak"
+    },
+    {
+      "label": "Challenge",
+      "value": "1/4 (50 XP; PB +2)"
+    },
+    {
+      "label": "Habitat",
+      "value": "Forest"
+    },
+    {
+      "label": "Source",
+      "value": "Monster Manual (2014), page 32"
+    }
+  ],
+  "sections": [
+    {
+      "title": "Actions",
+      "entries": [
+        {
+          "name": "Claws",
+          "description": "Melee Weapon Attack: +3 to hit, reach 5 ft., one target. Hit: 6 (2d4 + 1) Piercing damage."
+        },
+        {
+          "name": "Needles",
+          "description": "Ranged Weapon Attack: +3 to hit, range 30/60 ft., one target. Hit: 8 (2d6 + 1) Piercing damage."
+        }
+      ]
+    }
+  ]
+}

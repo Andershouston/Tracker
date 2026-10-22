@@ -53,7 +53,7 @@ export async function loadSnapshot(): Promise<AppSnapshot | null> {
   if (!encounters.length && !settingsRecords.length) return null;
   const settingsRecord = settingsRecords[0];
   const settings: AppSettings = settingsRecord
-    ? { activeEncounterId: settingsRecord.activeEncounterId, activePanel: settingsRecord.activePanel, persistenceRequested: settingsRecord.persistenceRequested }
+    ? { activeEncounterId: settingsRecord.activeEncounterId, activePanel: settingsRecord.activePanel, rosterOpen: settingsRecord.rosterOpen, persistenceRequested: settingsRecord.persistenceRequested }
     : { activeEncounterId: encounters[0]?.id ?? null, activePanel: "log", persistenceRequested: false };
   return {
     encounters: encounters.map((encounter) => ({ ...encounter, entities: encounter.entities.map(normalizeEntityHealth) })),

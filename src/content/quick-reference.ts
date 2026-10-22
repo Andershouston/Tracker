@@ -77,3 +77,19 @@ export const QUICK_REFERENCES = {
     ],
   },
 } satisfies Record<string, QuickReferenceSection>;
+
+export type QuickReferenceKey = keyof typeof QUICK_REFERENCES;
+export const QUICK_REFERENCE_KEYS: QuickReferenceKey[] = ["movement", "actions", "reactions", "bonus"];
+
+export function filterQuickReferenceSections(selected: ReadonlySet<QuickReferenceKey>, query: string) {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const keys = QUICK_REFERENCE_KEYS.filter((key) => selected.size === 0 || selected.has(key));
+
+  return keys.map((key) => {
+    const section = QUICK_REFERENCES[key];
+    const entries = normalizedQuery
+      ? section.entries.filter((entry) => `${entry.title} ${entry.summary} ${entry.description ?? ""}`.toLocaleLowerCase().includes(normalizedQuery))
+      : section.entries;
+    return { key, section, entries };
+  }).filter(({ entries }) => !normalizedQuery || entries.length > 0);
+}
