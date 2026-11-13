@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { DropdownMenu } from "radix-ui";
+import { instantiateEntityNameSuggestion, type EntityNameSuggestion } from "../../domain/entity-name-suggestions";
 import type { EncounterEntity, EntityType } from "../../domain/types";
-import { canonicalEntityName } from "../../domain/stat-block-links";
 import { CreatureNameAutocomplete } from "./CreatureNameAutocomplete";
 
 interface InlineEntityEditorProps {
   entity: EncounterEntity;
-  availableCreatures: EncounterEntity[];
+  nameSuggestions: EntityNameSuggestion[];
+  existingEntities: EncounterEntity[];
   onChange: (entity: EncounterEntity) => void;
   onComplete: (entity: EncounterEntity, statBlockSourceId?: string) => void;
   onCancel: () => void;
@@ -19,12 +20,13 @@ const typeOptions: Array<{ type: EntityType; label: string; icon: string }> = [
   { type: "Neutral", label: "NPC", icon: "/icons/ui/npc.svg" },
 ];
 
-export function InlineEntityEditor({ entity, availableCreatures, onChange, onComplete, onCancel }: InlineEntityEditorProps) {
+export function InlineEntityEditor({ entity, nameSuggestions, existingEntities, onChange, onComplete, onCancel }: InlineEntityEditorProps) {
   const [draft, setDraft] = useState<EncounterEntity>(entity);
   const [name, setName] = useState(entity.name);
   const [initiativeModifier, setInitiativeModifier] = useState(String(entity.initiativeModifier || ""));
   const [armorClass, setArmorClass] = useState(String(entity.armorClass));
   const [maxHP, setMaxHP] = useState(String(entity.maxHP));
+  const [statBlockSourceId, setStatBlockSourceId] = useState<string>();
   const selected = typeOptions.find((option) => option.type === draft.type) ?? typeOptions[1];
 
   const value = (overrides: Partial<EncounterEntity> = {}): EncounterEntity => {
@@ -42,21 +44,17 @@ export function InlineEntityEditor({ entity, availableCreatures, onChange, onCom
   const publish = (next: EncounterEntity) => { setDraft(next); onChange(next); };
   const finish = () => {
     if (!name.trim()) return;
-    onComplete({ ...value(), name: name.trim() });
+    onComplete({ ...value(), name: name.trim() }, statBlockSourceId);
   };
-  const chooseCreature = (source: EncounterEntity) => {
-    const next = value({
-      name: canonicalEntityName(source.name),
-      type: "Enemy",
-      initiativeModifier: source.initiativeModifier,
-      armorClass: source.armorClass,
-      maxHP: source.maxHP,
-      currentHP: source.maxHP,
-      statBlock: source.statBlock ? structuredClone(source.statBlock) : undefined,
-      statBlockLinkId: source.statBlockLinkId,
-      statBlockUnlinked: false,
-    });
-    onComplete(next, source.id);
+  const chooseSuggestion = (suggestion: EntityNameSuggestion) => {
+    const resolved = instantiateEntityNameSuggestion(suggestion, draft, existingEntities);
+    const next = resolved.entity;
+    setName(next.name);
+    setInitiativeModifier(String(next.initiativeModifier || ""));
+    setArmorClass(String(next.armorClass));
+    setMaxHP(String(next.maxHP));
+    setStatBlockSourceId(resolved.statBlockSourceId);
+    publish(next);
   };
 
   return <article className="inline-entity-editor">
@@ -68,7 +66,7 @@ export function InlineEntityEditor({ entity, availableCreatures, onChange, onCom
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
     <label className="inline-field inline-field--initiative" title="Initiative modifier"><img src="/icons/ui/initiative-modifier.svg" alt="" /><input type="number" aria-label="Initiative modifier" placeholder="0" value={initiativeModifier} onInput={(event) => { setInitiativeModifier(event.currentTarget.value); onChange(value({ initiativeModifier: event.currentTarget.valueAsNumber || 0 })); }} /></label>
-    <CreatureNameAutocomplete autoFocus className="inline-field inline-field--name" ariaLabel="Entity name" placeholder="Entity name" value={name} entities={availableCreatures} onChange={(nextName) => { setName(nextName); onChange(value({ name: nextName })); }} onSelect={chooseCreature} onEnter={finish} onEscape={onCancel} />
+    <CreatureNameAutocomplete autoFocus className="inline-field inline-field--name" ariaLabel="Entity name" placeholder="Entity name" value={name} suggestions={nameSuggestions} onChange={(nextName) => { setName(nextName); setStatBlockSourceId(undefined); onChange(value({ name: nextName })); }} onSelect={chooseSuggestion} onEnter={finish} onEscape={onCancel} />
     <label className="inline-field inline-field--ac" title="Armor Class"><img src="/icons/ui/field-shield.svg" alt="" /><input type="number" min="0" aria-label="Armor Class" value={armorClass} onInput={(event) => { setArmorClass(event.currentTarget.value); onChange(value({ armorClass: event.currentTarget.valueAsNumber || 10 })); }} /></label>
     <label className="inline-field inline-field--hp" title="Maximum Hit Points"><img src="/icons/ui/field-heart.svg" alt="" /><input type="number" min="0" step="1" aria-label="Maximum Hit Points" value={maxHP} onInput={(event) => { setMaxHP(event.currentTarget.value); const hp = Math.max(0, Math.floor(event.currentTarget.valueAsNumber || 0)); onChange(value({ maxHP: hp, currentHP: hp })); }} onKeyDown={(event) => { if (event.key === "Enter") finish(); }} /></label>
     <div className="inline-entity-editor__actions">

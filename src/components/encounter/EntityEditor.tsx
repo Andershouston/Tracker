@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { ToggleGroup } from "radix-ui";
+import { instantiateEntityNameSuggestion, type EntityNameSuggestion } from "../../domain/entity-name-suggestions";
 import { createEntity, parseEntityType } from "../../domain/factories";
 import { configureEntityHP } from "../../domain/hit-points";
-import { canonicalEntityName } from "../../domain/stat-block-links";
 import type { EncounterEntity, EntityType } from "../../domain/types";
 import { Button } from "../shared/Button";
 import { Modal } from "../shared/Modal";
@@ -13,16 +13,18 @@ interface EntityEditorProps {
   entity?: EncounterEntity;
   title?: string;
   rosterOnly?: boolean;
-  availableCreatures?: EncounterEntity[];
+  nameSuggestions?: EntityNameSuggestion[];
+  existingEntities?: EncounterEntity[];
   onSave: (entity: EncounterEntity, statBlockSourceId?: string) => void;
   onClose: () => void;
 }
 
-export function EntityEditor({ entity, title, rosterOnly = false, availableCreatures = [], onSave, onClose }: EntityEditorProps) {
+export function EntityEditor({ entity, title, rosterOnly = false, nameSuggestions = [], existingEntities = [], onSave, onClose }: EntityEditorProps) {
   const [draft, setDraft] = useState<EncounterEntity>(() => ({
     ...(entity ? structuredClone(entity) : createEntity()),
     ...(rosterOnly ? { isPersistent: true } : {}),
   }));
+  const [statBlockSourceId, setStatBlockSourceId] = useState<string>();
   const update = <K extends keyof EncounterEntity>(key: K, value: EncounterEntity[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const typeOptions: Array<{ type: EntityType; label: string; icon: string }> = [
     { type: "PC", label: "Player", icon: "/icons/ui/player.svg" },
@@ -31,19 +33,11 @@ export function EntityEditor({ entity, title, rosterOnly = false, availableCreat
     { type: "Ally", label: "Ally", icon: "/icons/ui/ally.svg" },
   ];
   const hpValid = draft.maxHP >= 0 && draft.currentHP <= draft.maxHP;
-  const save = () => onSave(configureEntityHP({ ...draft, name: draft.name.trim(), isPersistent: rosterOnly || draft.isPersistent }, draft.currentHP, draft.maxHP));
-  const selectCreature = (source: EncounterEntity) => {
-    const next = configureEntityHP({
-      ...draft,
-      name: canonicalEntityName(source.name),
-      type: "Enemy",
-      initiativeModifier: source.initiativeModifier,
-      armorClass: source.armorClass,
-      statBlock: source.statBlock ? structuredClone(source.statBlock) : undefined,
-      statBlockLinkId: source.statBlockLinkId,
-      statBlockUnlinked: false,
-    }, source.maxHP, source.maxHP);
-    onSave(next, source.id);
+  const save = () => onSave(configureEntityHP({ ...draft, name: draft.name.trim(), isPersistent: rosterOnly || draft.isPersistent }, draft.currentHP, draft.maxHP), statBlockSourceId);
+  const selectSuggestion = (suggestion: EntityNameSuggestion) => {
+    const resolved = instantiateEntityNameSuggestion(suggestion, draft, existingEntities);
+    setDraft(resolved.entity);
+    setStatBlockSourceId(resolved.statBlockSourceId);
   };
 
   return (
@@ -64,7 +58,7 @@ export function EntityEditor({ entity, title, rosterOnly = false, availableCreat
           </ToggleGroup.Root>
         </fieldset>
         {!entity && !rosterOnly
-          ? <div className="field field--full"><span>Name</span><CreatureNameAutocomplete autoFocus value={draft.name} entities={availableCreatures} onChange={(value) => update("name", value)} onSelect={selectCreature} onEnter={save} placeholder="Goblin" /></div>
+          ? <div className="field field--full"><span>Name</span><CreatureNameAutocomplete autoFocus value={draft.name} suggestions={nameSuggestions} onChange={(value) => { update("name", value); setStatBlockSourceId(undefined); }} onSelect={selectSuggestion} onEnter={save} placeholder="Goblin" /></div>
           : <label className="field field--full"><span>Name</span><input autoFocus value={draft.name} onInput={(event) => update("name", event.currentTarget.value)} placeholder="Goblin" /></label>}
         <div className="form-grid">
           <label className="field"><span>Maximum HP</span><input type="number" min="0" step="1" value={draft.maxHP} onInput={(event) => { const maxHP = Math.max(0, Math.floor(event.currentTarget.valueAsNumber || 0)); setDraft((current) => ({ ...current, maxHP, currentHP: current.currentHP > maxHP ? maxHP : current.currentHP })); }} /></label>

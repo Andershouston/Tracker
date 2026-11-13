@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { EntityNameSuggestion } from "../../domain/entity-name-suggestions";
 import type { ActiveEffect, EffectDefinition, Encounter, EncounterEntity } from "../../domain/types";
 import { EntityRow } from "./EntityRow";
 import { InlineEntityEditor } from "./InlineEntityEditor";
@@ -36,6 +37,7 @@ interface TurnOrderProps {
   onNotes: (entity: EncounterEntity) => void;
   onReorder: (from: number, to: number) => void;
   onAdd: () => void;
+  nameSuggestions: EntityNameSuggestion[];
   draftEntity: EncounterEntity | null;
   onDraftChange: (entity: EncounterEntity) => void;
   onDraftComplete: (entity: EncounterEntity, statBlockSourceId?: string) => void;
@@ -88,7 +90,7 @@ export function TurnOrder(props: TurnOrderProps) {
       onDragStart={() => { dragIndex.current = index; }}
       onDrop={() => { if (dragIndex.current !== null) props.onReorder(dragIndex.current, index); dragIndex.current = null; }}
     />)}
-    {props.draftEntity && <InlineEntityEditor key={props.draftEntity.id} entity={props.draftEntity} availableCreatures={props.encounter.entities} onChange={props.onDraftChange} onComplete={props.onDraftComplete} onCancel={props.onDraftCancel} />}
+    {props.draftEntity && <InlineEntityEditor key={props.draftEntity.id} entity={props.draftEntity} nameSuggestions={props.nameSuggestions} existingEntities={props.encounter.entities} onChange={props.onDraftChange} onComplete={props.onDraftComplete} onCancel={props.onDraftCancel} />}
     {staging && <button className="add-row" onClick={props.onAdd}><span className="add-row__icon"><img src="/icons/ui/add.svg" alt="" /></span><strong>New Entity</strong></button>}
   </div>;
 }

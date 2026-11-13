@@ -20,6 +20,7 @@ import { loadSnapshot, requestPersistentStorage, saveSnapshot } from "../data/da
 import { importLegacyState } from "../data/legacy-import";
 import { activateEffect } from "../domain/effects";
 import { bestiaryLinkId, collectBestiaryEntries, creatureTemplateFromEntity, instantiateBestiaryEntry, type BestiaryEntry } from "../domain/bestiary";
+import { collectEntityNameSuggestions } from "../domain/entity-name-suggestions";
 import { nextDuplicateEntityName } from "../domain/entity-names";
 import { createEncounter, createEntity, createRosterMemberFromEntity, createSeedSnapshot, instantiateRosterMember, uid } from "../domain/factories";
 import { configureEntityHP, damageEntity, healEntity, normalizeEntityHealth, recordDeathSave, reviveEntity, setEntityHP, setTempHP, stabilizeEntity } from "../domain/hit-points";
@@ -138,6 +139,7 @@ export function App() {
     : undefined;
   const effects = useMemo(() => encounter && snapshot ? availableEffects(snapshot.contentPacks, encounter.rulesetId) : [], [encounter?.rulesetId, snapshot?.contentPacks]);
   const bestiaryEntries = useMemo(() => snapshot ? collectBestiaryEntries(snapshot.bestiary, snapshot.contentPacks) : [], [snapshot?.bestiary, snapshot?.contentPacks]);
+  const entityNameSuggestions = useMemo(() => encounter && snapshot ? collectEntityNameSuggestions(encounter, snapshot.roster, bestiaryEntries) : [], [encounter, snapshot?.roster, bestiaryEntries]);
   const selectedEntities = useMemo(() => encounter?.entities.filter((entity) => selectedEntityIds.has(entity.id)) ?? [], [encounter?.entities, selectedEntityIds]);
 
   useEffect(() => {
@@ -774,6 +776,7 @@ export function App() {
         onNotes={(entity) => { setNotesEntityId(entity.id); commit((current) => ({ ...current, settings: { ...current.settings, activePanel: "notes" } })); }}
         onReorder={(from, to) => updateEncounter((current) => { const entities = [...current.entities]; const [moved] = entities.splice(from, 1); entities.splice(to, 0, moved); return { ...current, entities }; })}
         onAdd={startAddingEntity}
+        nameSuggestions={entityNameSuggestions}
         draftEntity={draftEntity}
         onDraftChange={setDraftEntity}
         onDraftComplete={completeDraft}
@@ -806,7 +809,7 @@ export function App() {
     />
 
     <input ref={importInput} hidden type="file" accept="application/json,.json" onChange={(event) => { void importDocument(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-    {editor && <EntityEditor entity={editor.entity} title={editor.rosterOnly ? (editor.entity ? "Edit Character" : "Add Character") : undefined} rosterOnly={editor.rosterOnly} availableCreatures={encounter.entities} onSave={saveEntity} onClose={() => setEditor(null)} />}
+    {editor && <EntityEditor entity={editor.entity} title={editor.rosterOnly ? (editor.entity ? "Edit Character" : "Add Character") : undefined} rosterOnly={editor.rosterOnly} nameSuggestions={entityNameSuggestions} existingEntities={encounter.entities} onSave={saveEntity} onClose={() => setEditor(null)} />}
     {bestiaryEditor && <BestiaryEditor entry={bestiaryEditor} onSave={saveBestiaryEntry} onClose={() => setBestiaryEditor(null)} />}
     {dialog === "new" && <Modal
       title="New Encounter"

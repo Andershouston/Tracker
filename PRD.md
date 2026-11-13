@@ -1,7 +1,7 @@
 # Initiative Tracker — Product Requirements Document
 
 > **Document status:** Living product and implementation reference
-> **Last consolidated:** 2026-08-11
+> **Last consolidated:** 2026-11-11
 > **Product:** Initiative Tracker
 > **Repository:** `/Users/anders/Documents/dmtools`
 
@@ -199,13 +199,13 @@ An encounter entity is an independent instance with:
 
 ### 6.3 Roster member
 
-**Decided:** the roster is a set of reusable templates, not automatically synchronized campaign state.
+**Decided:** the roster is a reusable profile library with deliberate linkage to encounter copies.
 
-- Adding a roster member creates an independent encounter entity.
-- The encounter instance receives baseline identity, AC, initiative modifier, Maximum HP, and related configuration.
+- Adding a roster member creates an encounter entity carrying the roster entry's `rosterId`.
+- Name, type, initiative modifier, Armor Class, Maximum HP, notes, and stat block synchronize between the roster template and every linked encounter copy.
 - New encounter instances default to `currentHP = maxHP` and `tempHP = 0`.
-- Damage, healing, effects, initiative, and notes in an encounter do not automatically write back to the roster.
-- A future explicit “Update roster from encounter” action may be considered, but is out of scope now.
+- Current HP, Temporary HP, rolled initiative, effects, reactions, death saves, and turn state remain local to each encounter.
+- Lowering Maximum HP clamps Current HP only when necessary; the roster template remains fully healed.
 
 ### 6.4 Content source snapshot
 
@@ -236,10 +236,11 @@ There is no official/homebrew distinction. Whoever compiles or shares a pack is 
 
 ### 7.3 Current and future content behavior
 
-- Conditions from compatible packs can currently be used by the effect picker.
-- Creature and spell structures exist in the schema, but complete UI flows for consuming them are future work.
-- Future field/schema migrations may be necessary as richer creature and spell content is introduced.
-- A generalized future content-field migration system is out of scope for the current fidelity work.
+- Conditions from compatible packs can be used by the effect picker.
+- The bestiary combines editable local creatures with creatures from installed packs and supports search, ruleset/CR/type filters, full-entry previews, repeated encounter insertion, and numbered instance names.
+- Encounter creature instances snapshot their source. Matching enemies may share a stat-block link while retaining independent combat state.
+- Spell structures exist in the schema, but a complete spell-library consumption flow remains future work.
+- Future field/schema migrations may be necessary as richer content is introduced. A generalized migration system remains out of scope.
 
 ## 8. Application states and shared layout
 
@@ -367,9 +368,10 @@ Roster entities are not linked to a ruleset, so encounter creation does not hide
 4. The checkmark action is labelled **Add Entity** and commits the current valid entity. It does not create another draft.
 5. Cancel discards the draft without persistence.
 6. If New Entity is selected while a named draft exists, commit that entity and append a fresh draft.
-7. If New Entity is selected while an unnamed draft exists, discard it and replace it with a fresh draft.
-8. A draft must never enter autosave or survive reload before it is committed.
-9. Repeated entry should retain the last selected entity type where practical.
+7. Entity name is a freeform combobox. After two characters it suggests available roster members, ruleset-matching bestiary creatures, and reusable encounter stat blocks. Roster members already in the encounter are omitted; selecting a suggestion populates the draft without committing it.
+8. If New Entity is selected while an unnamed draft exists, discard it and replace it with a fresh draft.
+9. A draft must never enter autosave or survive reload before it is committed.
+10. Repeated entry should retain the last selected entity type where practical.
 10. Duplicate names receive `(2)`, `(3)`, and so on for encounter readability.
 
 ### F07 — Review and manage staging entities
@@ -658,7 +660,7 @@ For ongoing management, refer to work by its `B-xx` ID and product questions by 
 | B-12 | P2 | Effect removal | Removal can be too easy to trigger and descriptions rely heavily on native title tooltips. | Separate inspection from removal and provide safer recovery/confirmation appropriate to frequency. | Defined from review—needs design pass |
 | B-13 | P2 | Keyboard/modal behavior | Focus trapping, restoration, Escape behavior, and drag alternatives are incomplete. | Meet F17 accessibility requirements. | Defined—not implemented |
 | B-14 | P2 | Responsive reachability | Critical actions can become hidden or horizontally awkward at narrow widths. | Keep all core setup and combat actions reachable at mobile/tablet widths. | Defined—responsive design open |
-| B-15 | P3 | Creature/spell sources | Pack schema stores creatures/spells but the tracker cannot pull them into encounters. | Add compatible search/import flows using source references and encounter snapshots. | Future |
+| B-15 | P3 | Creature/spell sources | Creature bestiary flow is implemented; spell-library consumption is not. | Preserve the creature snapshot/link model and add a scoped spell flow only after its UX is defined. | Partially implemented |
 | B-16 | P2 | Header fidelity | Header grouping, ruleset badge, encounter-name interaction, icon sizing, and responsive collapse differed from the component spec. | Match Figma `2111:21071` while retaining semantic labels and save-status announcements. | Implemented—verified |
 | B-17 | P1 | Death-save controls | Individual pips were independent toggle targets and the dying-row anatomy differed from Figma. | Use the F13 whole-counter increment model and `2137:35748` dying-row presentation. | Implemented—tested and verified |
 

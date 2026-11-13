@@ -12,7 +12,7 @@ Dungeon Masters preparing and running D&D 5e encounters at the table. The primar
 
 ## Product Purpose
 
-Initiative Tracker is a local-first encounter workspace for staging combatants and running encounters without requiring an account or hosted database. Success means faster scanning, fewer missed turn-state details, and fewer combat-management mistakes.
+Initiative Tracker is a local-first encounter workspace for staging combatants, maintaining reusable roster and bestiary libraries, and running encounters without requiring an account or hosted database. Success means faster scanning, fewer missed turn-state details, and fewer combat-management mistakes.
 
 ## Positioning
 
@@ -26,6 +26,7 @@ Users prepare a roster and encounter, roll or enter initiative, run turns and ro
 
 - Preserve the interaction behavior of the original HTML tracker unless an explicit later Figma flow overrides it.
 - Preserve the current React, TypeScript, Radix Primitives, and Radix Colors presentation architecture together with IndexedDB persistence, legacy migration, autosave, versioned import/export, ruleset pinning, content-pack validation, and tested domain logic.
+- Preserve the boundary between reusable roster/bestiary profiles and per-encounter live state. Shared profile edits synchronize deliberately; HP loss, initiative, effects, and turn state remain encounter-local.
 - Content-pack metadata is limited to source version, ruleset compatibility, and required attribution. Pack authors are responsible for supplying attribution.
 - User-supplied JSON may add conditions, creatures, spells, and related content compatible with the 2014 and/or 2024 rulesets.
 - Content-field schema migration may be needed in the future, but redesigning that migration system is currently out of scope.
